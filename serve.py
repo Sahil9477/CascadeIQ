@@ -30,6 +30,8 @@ from fastapi.routing import APIRoute  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from cloud.runs import database_configured, router as runs_router  # noqa: E402
+from checks.crosscheck import router as check_router  # noqa: E402
+from checks.chart_review import router as chart_router  # noqa: E402
 
 STATIC = ROOT / "static"
 AUDIT_API = False
@@ -46,6 +48,8 @@ except Exception:  # keep the dashboard reachable (offline preview) even if the 
 OWNED = {"/", "/api/health", "/api/runs", "/api/runs/{run_id}", "/runs/{run_id}"}
 app.router.routes = [r for r in app.router.routes if not (isinstance(r, APIRoute) and r.path in OWNED)]
 app.include_router(runs_router)
+app.include_router(check_router)  # advisory Gemma cross-check of Qwen's extraction
+app.include_router(chart_router)  # advisory: Gemma (vision) reads the simulation chart
 if not any(getattr(r, "path", None) == "/ui" for r in app.router.routes):
     app.mount("/ui", StaticFiles(directory=STATIC, html=True), name="ui")
 

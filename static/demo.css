@@ -529,3 +529,23 @@ body { letter-spacing: -0.01em; -webkit-font-smoothing: antialiased; }
 @media (max-width: 640px) {
   .cost-figures { grid-template-columns: 1fr; }
 }
+
+/* advisory Gemma cross-check */
+.xcheck { padding: 14px 16px; border-radius: var(--r-tile); box-shadow: var(--inset-sm); display: flex; flex-direction: column; gap: 8px; }
+.xcheck .tool { align-self: flex-start; }
+.xcheck .note { margin: 0; font-size: 13px; }
+.xcheck-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.xcheck-table th { text-align: left; color: var(--dim); font-weight: 600; padding: 4px 4px; border-bottom: 1px solid var(--lo); }
+.xcheck-table td { padding: 5px 4px; border-bottom: 1px solid rgba(190, 193, 200, .5); }
+.xcheck-table td.ok { color: var(--ok-text); font-weight: 600; }
+.xcheck-table td.bad { color: var(--bad-text); font-weight: 700; }
+.xcheck-table td.warn { color: var(--warn-text); font-weight: 600; }
+.status.warn { color: var(--warn-text); }
+
+/* Gemma reads the chart */
+.chart-read { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.chart-read .note { margin: 0; font-size: 13px; flex: 1 1 260px; }
+.chart-read .status { flex-basis: 100%; }
+.chart-read-out { flex-basis: 100%; padding: 14px 18px; border-radius: var(--r-tile); box-shadow: var(--inset-sm); }
+.chart-read-out p { margin: 0; font-size: 15px; line-height: 1.6; max-width: 72ch; }
+.chart-suggest { margin-top: 10px !important; font-weight: 700; }

@@ -449,6 +449,7 @@ async function onInterpret() {
       use_fixture: $("useFixture").checked,
     });
     state.interpret = data;
+    resetCrossCheck();
     fillScenarioUI(data.scenario);
     window.Instrument && Instrument.onInterpret(data);
     inferenceBadge(data.inference_used, data.inference_error);
@@ -570,6 +571,98 @@ async function runResilienceAudit() {
   await onAudit();
 }
 
+/* ---------- Advisory cross-check: Qwen's numbers vs the text vs Gemma (never changes the scenario) ---------- */
+
+function resetCrossCheck() {
+  $("btnCrossCheck").disabled = !state.interpret;
+  setStatus($("xcheckStatus"), "");
+  $("xcheckTable").classList.add("hidden");
+  $("xcheckRaw").classList.add("hidden");
+}
+
+async function onCrossCheck() {
+  const btn = $("btnCrossCheck");
+  btn.disabled = true;
+  setStatus($("xcheckStatus"), "Checking…");
+  try {
+    if (!state.interpret || !state.scenario) throw new Error("Interpret an incident first.");
+    const r = await api("/api/interpret/check", {
+      text: state.interpret.source_text || $("incident").value,
+      scenario: scenarioFromFields(), // what the audit will actually use, including manual edits
+      missing_fields: state.interpret.missing_fields || [],
+    });
+    const cell = (text, cls) => { const td = document.createElement("td"); td.textContent = text; if (cls) td.className = cls; return td; };
+    const GROUND = { found: ["in text", "ok"], not_found: ["not in text", "bad"], default: ["default", "warn"], "n/a": ["—", ""] };
+    $("xcheckBody").replaceChildren(...r.fields.map((f) => {
+      const tr = document.createElement("tr");
+      const [gt, gc] = GROUND[f.grounding] || ["—", ""];
+      const gemma = !r.gemma.used ? "—" : f.gemma == null ? "not stated" : String(f.gemma);
+      tr.append(cell(f.label), cell(f.qwen == null ? "—" : String(f.qwen)), cell(gt, gc),
+                cell(gemma + (f.agree === false ? "  (differs)" : ""), f.agree === false ? "bad" : f.agree ? "ok" : ""));
+      return tr;
+    }));
+    $("xcheckTable").classList.remove("hidden");
+    const g = r.grounding, a = r.agreement;
+    const textPart = `${g.found}/${g.checked} extracted numbers appear in the text`;
+    if (r.gemma.used) {
+      setStatus($("xcheckStatus"), `Gemma (${r.gemma.model}) agrees on ${a.agree}/${a.compared} fields · ${textPart}. Advisory only.`,
+        a.agree === a.compared && g.found === g.checked ? "ok" : "warn");
+      $("xcheckRawPre").textContent = r.gemma.raw_response || "";
+      $("xcheckRaw").classList.remove("hidden");
+    } else {
+      setStatus($("xcheckStatus"), `Gemma was not called: ${r.gemma.error} · ${textPart}.`, "warn");
+    }
+  } catch (e) {
+    setStatus($("xcheckStatus"), e.message, "err");
+  } finally {
+    btn.disabled = !state.interpret;
+  }
+}
+
+/* ---------- Gemma (vision) reads the simulation chart: advisory reading + one suggestion ---------- */
+
+function chartPng() {
+  // The chart canvas is transparent; paint the page background under it so the model sees what people see.
+  const src = $("chart");
+  const out = document.createElement("canvas");
+  out.width = src.width;
+  out.height = src.height;
+  const ctx = out.getContext("2d");
+  ctx.fillStyle = getComputedStyle(document.body).backgroundColor || "#e4e5e9";
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.drawImage(src, 0, 0);
+  return out.toDataURL("image/png");
+}
+
+async function onChartRead() {
+  const btn = $("btnChartRead");
+  btn.disabled = true;
+  $("chartReadOut").classList.add("hidden");
+  setStatus($("chartReadStatus"), "Gemma is reading the chart…");
+  try {
+    const sc = state.audit?.scenario || state.scenario;
+    if (!state.audit || !sc) throw new Error("Run the audit first.");
+    const trace = window.Instrument && Instrument.trace() === "mitigated" ? "after" : "before";
+    const r = await api("/api/chart/review", {
+      image: chartPng(), fault_start: sc.fault.start_tick, fault_end: sc.fault.end_tick, trace,
+    });
+    if (!r.used) {
+      setStatus($("chartReadStatus"), `Gemma was not called: ${r.error}`, "warn");
+      return;
+    }
+    $("chartReadText").textContent = r.text || "";
+    $("chartReadSuggest").textContent = r.suggestion ? `Suggestion: ${r.suggestion}` : "";
+    $("chartReadSuggest").classList.toggle("hidden", !r.suggestion);
+    $("chartReadOut").classList.remove("hidden");
+    setStatus($("chartReadStatus"),
+      `Read by ${r.model} (vision)${r.latency_ms ? ` in ${(r.latency_ms / 1000).toFixed(1)} s` : ""}, ${trace === "after" ? "after" : "before"} mitigation. Advisory only.`, "ok");
+  } catch (e) {
+    setStatus($("chartReadStatus"), e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function loadDemoScenario() {
   // Fixture interpret path — offline-safe rehearsal defaults
   $("useFixture").checked = true;
@@ -684,7 +777,7 @@ async function loadSavedAudit(id) {
   document.querySelectorAll("input, textarea, select").forEach((el) => {
     if (!el.hasAttribute("data-keep-enabled")) el.disabled = true; // timeline controls stay usable
   });
-  ["btnInterpret", "btnLoadDemo", "btnSyncJson", "btnApplyJson", "btnAudit", "btnRecommend", "btnVerify", "shareBox"]
+  ["btnInterpret", "btnLoadDemo", "btnSyncJson", "btnApplyJson", "btnAudit", "btnRecommend", "btnVerify", "shareBox", "xcheckBox"]
     .forEach((id) => $(id).classList.add("edit-only"));
   document.querySelector(".toggle").classList.add("edit-only");
 }
@@ -704,6 +797,8 @@ function wire() {
   $("costCount")?.addEventListener("input", updateCostEstimate);
   loadComputeCatalog();
   $("btnSave").addEventListener("click", onSave);
+  $("btnCrossCheck").addEventListener("click", onCrossCheck);
+  $("btnChartRead").addEventListener("click", onChartRead);
   $("btnInterpret").addEventListener("click", onInterpret);
   $("btnAudit").addEventListener("click", runResilienceAudit);
   $("btnRecommend").addEventListener("click", onRecommend);

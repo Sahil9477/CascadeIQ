@@ -136,6 +136,16 @@
               <span class="capacity">Payments capacity</span>
             </div>
           </div>
+          <!-- Gemma (vision) reads the chart above; advisory, never changes results -->
+          <div class="chart-read" id="chartReadBox">
+            <button type="button" class="tool" id="btnChartRead" data-keep-enabled>Ask Gemma to read this chart</button>
+            <span class="note">Sends the chart image to Akamai's vision model. Advisory only: the simulator decides whether a fix works.</span>
+            <div class="status" id="chartReadStatus"></div>
+            <div class="chart-read-out hidden" id="chartReadOut">
+              <p id="chartReadText"></p>
+              <p class="chart-suggest hidden" id="chartReadSuggest"></p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -156,6 +166,21 @@
           <summary>Raw model output for this interpretation</summary>
           <pre id="interpretRawPre"></pre>
         </details>
+
+        <!-- Advisory second opinion on Qwen's extraction; never changes the scenario -->
+        <div class="xcheck" id="xcheckBox">
+          <button type="button" class="tool" id="btnCrossCheck" disabled>Cross-check with Gemma</button>
+          <p class="note">Checks each number Qwen extracted against the text and against a second model (Gemma). Advisory only: nothing is changed.</p>
+          <div class="status" id="xcheckStatus"></div>
+          <table class="xcheck-table hidden" id="xcheckTable">
+            <thead><tr><th>Field</th><th>Qwen</th><th>In text</th><th>Gemma</th></tr></thead>
+            <tbody id="xcheckBody"></tbody>
+          </table>
+          <details class="raw hidden" id="xcheckRaw">
+            <summary>Raw Gemma output</summary>
+            <pre id="xcheckRawPre"></pre>
+          </details>
+        </div>
 
         <button type="button" class="fire" id="btnAudit">Run resilience audit</button>
         <div class="status" id="auditStatus"></div>
