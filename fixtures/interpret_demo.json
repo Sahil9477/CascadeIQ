@@ -1,0 +1,63 @@
+{
+  "validation_status": "ok_with_defaults",
+  "missing_fields": [],
+  "raw_model_output": {
+    "arrivals_rps": 80,
+    "payments_capacity_rps": 100,
+    "fault_start_tick": 20,
+    "fault_end_tick": 50,
+    "fault_capacity_rps": 30,
+    "max_retries": 2,
+    "ticks": 90,
+    "missing_fields": [],
+    "assumptions": [
+      "Fixed Gateway → Orders → Payments topology",
+      "Numeric values taken from the incident text"
+    ]
+  },
+  "scenario": {
+    "topology": [
+      {"id": "gateway", "label": "API Gateway"},
+      {"id": "orders", "label": "Orders"},
+      {"id": "payments", "label": "Payments"}
+    ],
+    "ticks": 90,
+    "arrivals_rps": 80,
+    "capacities": {
+      "gateway_rps": 10000,
+      "orders_rps": 5000,
+      "payments_rps": 100
+    },
+    "fault": {
+      "service": "payments",
+      "start_tick": 20,
+      "end_tick": 50,
+      "capacity_rps": 30
+    },
+    "retry": {
+      "mode": "immediate",
+      "max_retries": 2,
+      "base_backoff_ticks": 1,
+      "max_backoff_ticks": 8,
+      "jitter_fraction": 0.25
+    },
+    "queue_limit": 400,
+    "timeout_ticks": 5,
+    "seed": 42,
+    "financial": {
+      "revenue_per_checkout_usd": 42.0,
+      "metered_unit_price_usd": 0.0001,
+      "labels": [
+        "scenario estimate",
+        "not measured Akamai billing",
+        "not a production forecast"
+      ]
+    },
+    "assumptions": [
+      "Fixed Gateway → Orders → Payments topology",
+      "Numeric values taken from the incident text"
+    ],
+    "editable_defaults": [],
+    "source_text": "fixture"
+  }
+}

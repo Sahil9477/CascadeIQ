@@ -1,0 +1,59 @@
+{
+  "title": "CascadeIQ API contracts v1 (frozen)",
+  "base": "http://127.0.0.1:8000",
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/interpret",
+      "request": "fixtures/interpret_request.json",
+      "response_fields": [
+        "scenario",
+        "missing_fields",
+        "validation_status",
+        "inference_used",
+        "inference_error",
+        "raw_model_output",
+        "source_text"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/audit",
+      "request": "fixtures/audit_request.json",
+      "response_fields": ["result.series", "result.metrics", "result.seed"]
+    },
+    {
+      "method": "POST",
+      "path": "/api/recommend",
+      "request_fields": ["scenario", "audit", "use_fixture"],
+      "response_fields": [
+        "mitigation_id",
+        "rationale",
+        "inference_used",
+        "allowlist"
+      ],
+      "allowlist": [
+        "bounded_exponential_backoff_seeded_jitter",
+        "retry_cap_reduction"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/verify",
+      "request_fields": ["scenario", "mitigation_id", "baseline?"],
+      "response_fields": [
+        "baseline",
+        "mitigated",
+        "deltas",
+        "overall_improved",
+        "notes"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/runs",
+      "owner": "Danny (Postgres stretch)",
+      "status": "stub"
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "result": {
+    "metrics": {
+      "unique_successful_checkouts": 6240,
+      "unique_failed_checkouts": 960,
+      "total_attempts": 6240,
+      "total_completions": 6240,
+      "total_retries": 3980,
+      "retry_amplification": 0.8667,
+      "peak_backlog": 400,
+      "highest_impact_dependency": "payments",
+      "revenue_at_risk_usd": 40320.0,
+      "incremental_metered_spend_usd": 0.0,
+      "financial_labels": [
+        "scenario estimate",
+        "not measured Akamai billing",
+        "not a production forecast"
+      ]
+    },
+    "seed": 42,
+    "series_len": 90,
+    "series_sample": [
+      {
+        "t": 0,
+        "arrivals": 80,
+        "attempts": 80,
+        "completions": 80,
+        "backlog": 0,
+        "customer_failures": 0,
+        "payments_capacity": 100,
+        "retries_scheduled": 0
+      },
+      {
+        "t": 1,
+        "arrivals": 80,
+        "attempts": 80,
+        "completions": 80,
+        "backlog": 0,
+        "customer_failures": 0,
+        "payments_capacity": 100,
+        "retries_scheduled": 0
+      },
+      {
+        "t": 2,
+        "arrivals": 80,
+        "attempts": 80,
+        "completions": 80,
+        "backlog": 0,
+        "customer_failures": 0,
+        "payments_capacity": 100,
+        "retries_scheduled": 0
+      },
+      {
+        "t": 20,
+        "arrivals": 80,
+        "attempts": 30,
+        "completions": 30,
+        "backlog": 50,
+        "customer_failures": 0,
+        "payments_capacity": 30,
+        "retries_scheduled": 0
+      },
+      {
+        "t": 21,
+        "arrivals": 80,
+        "attempts": 30,
+        "completions": 30,
+        "backlog": 100,
+        "customer_failures": 0,
+        "payments_capacity": 30,
+        "retries_scheduled": 0
+      },
+      {
+        "t": 22,
+        "arrivals": 80,
+        "attempts": 30,
+        "completions": 30,
+        "backlog": 150,
+        "customer_failures": 0,
+        "payments_capacity": 30,
+        "retries_scheduled": 0
+      }
+    ]
+  }
+}
