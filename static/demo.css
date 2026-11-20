@@ -368,3 +368,52 @@ body.readonly .edit-only { display: none !important; }
   .step { font-size: 12px; }
   .delta-table th, .delta-table table { font-size: 12px; }
 }
+
+/* ---------- Apple-style type and metric tiles ----------
+   System font first (SF Pro on Apple devices), Manrope elsewhere.
+   Metric tiles: the number is the content, set large and centred; the label is a quiet caption beneath it. */
+:root {
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Manrope", system-ui, sans-serif;
+}
+body { letter-spacing: -0.01em; -webkit-font-smoothing: antialiased; }
+.plate h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.025em; }
+.instrument-head h2, .report-head h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
+
+/* baseline readout tiles */
+.readout { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+.readout .metric {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  min-height: 112px; padding: 16px 10px; border-radius: 22px;
+}
+.readout .v { order: 1; font-size: 30px; font-weight: 600; line-height: 1.05; letter-spacing: -0.03em; color: var(--text); }
+.readout .k { order: 2; margin-top: 6px; font-size: 13px; font-weight: 500; line-height: 1.3; letter-spacing: 0; }
+
+/* outcome tiles: centred, value first, caption under it */
+.oc { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 190px; }
+.oc h3 { order: 2; margin: 10px 0 0; font-size: 13px; font-weight: 500; letter-spacing: 0; }
+.oc .pair { order: 1; justify-content: center; }
+.oc .delta, .oc .pending { order: 3; }
+.oc .pending { max-width: 22ch; }
+.oc:not(.primary) .pair { flex-direction: column; align-items: center; row-gap: 2px; font-size: 34px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; }
+.oc:not(.primary) .pair .arrow { display: none; }
+.oc:not(.primary) .pair .before { order: 2; font-size: 14px; font-weight: 500; letter-spacing: 0; color: var(--dim); }
+.oc:not(.primary) .pair .before::before { content: "was "; }
+.oc:not(.primary) .pair .after { order: 1; }
+.oc.primary h3 { font-size: 15px; font-weight: 600; color: var(--text); }
+.oc.primary .pair { font-size: clamp(3.2rem, 6vw, 5.4rem); font-weight: 600; letter-spacing: -0.04em; column-gap: 14px; }
+.oc.primary .pair .before { font-weight: 300; }
+.oc.primary .pair .after { font-weight: 700; }
+.oc .delta { margin-top: 12px; }
+
+/* diagnostic fields and clock follow the same scale */
+.clock { font-weight: 200; letter-spacing: -0.04em; }
+.rec-label { font-size: 19px; font-weight: 600; letter-spacing: -0.02em; }
+.readout { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.readout .v { font-size: 28px; }
+.oc.primary .pair { flex-wrap: nowrap; white-space: nowrap; font-size: clamp(2.6rem, 4.4vw, 4.2rem); }
+@media (max-width: 640px) {
+  .readout { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .readout .metric { min-height: 96px; padding: 12px 6px; }
+  .readout .v { font-size: 24px; }
+  .oc { min-height: 150px; }
+}
