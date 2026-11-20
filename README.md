@@ -5,31 +5,38 @@ Virtual resilience audit: **AI interprets** an incident → **deterministic simu
 Hackathon prototype (Akamai Seattle AI Hackathon, Nov 2026).
 
 **Repo:** https://github.com/Sahil9477/CascadeIQ  
-**Active branch:** `feature/intelligence-engine`
+**Active branch:** `main` (demo shell: `feature/demo-shell`)
 
 ## Team
 
 | Owner | Owns |
 |---|---|
-| **Sahil** | Deterministic simulator, Qwen interpret/recommend, FastAPI `/api/interpret\|audit\|recommend\|verify`, contracts/fixtures |
-| **Danny** | Interactive dashboard (`static/`), Postgres `/api/runs`, Linode deploy |
+| **Sahil** | Deterministic simulator, Qwen interpret/recommend, FastAPI `/api/interpret\|audit\|recommend\|verify`, contracts/fixtures, minimal demo shell |
+| **Danny** | Full interactive dashboard, Postgres `/api/runs`, Linode deploy |
 
 ## Quick start
 
 ```bash
 cd ~/Desktop/CascadeIQ
-git checkout feature/intelligence-engine
+git checkout main   # or feature/demo-shell
 cp .env.example .env
 # paste AKAMAI_API_KEY from workshop (never commit .env)
 
 uv sync --extra dev
-uv run uvicorn cascadeiq.api.main:app --reload --port 8000
-# OpenAPI: http://127.0.0.1:8000/docs
+uv run uvicorn cascadeiq.api.main:app --reload --port 8010
+# Demo UI:  http://127.0.0.1:8010/
+# OpenAPI:  http://127.0.0.1:8010/docs
 
 uv run pytest -q
 uv run python scripts/demo_flow.py          # live Qwen + sim
 uv run python scripts/demo_flow.py --fixture
 ```
+
+### 90s demo shell
+
+Open `/` after uvicorn starts. Flow: paste incident → **Interpret** → edit scenario → **Run audit** (chart) → **Recommend** → pick allowlisted mitigation → **Verify** before/after.
+
+Check **use_fixture** for offline rehearsal (never claim fixture as successful inference — UI shows `inference_used`).
 
 ## API (frozen)
 
@@ -50,7 +57,9 @@ cascadeiq/engine/     # simulator + schemas
 cascadeiq/inference/  # Akamai Qwen client
 cascadeiq/api/        # FastAPI
 contracts/ fixtures/  # Danny-unblocking contracts
-static/               # Danny UI (stub index only)
+static/               # Minimal dark demo shell (Danny owns full dashboard later)
+docs/deploy-linode.md # Checklist only — no provisioning
 ```
 
 Do not commit `.env` or API keys. No billable cloud provisioning from this branch without Sahil approval.
+See [`docs/deploy-linode.md`](docs/deploy-linode.md) for a future deploy checklist.
