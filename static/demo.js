@@ -168,7 +168,7 @@ function drawChart(series) {
   const pad = { l: 40, r: 12, t: 14, b: 24 };
   const w = cssW - pad.l - pad.r;
   const h = cssH - pad.t - pad.b;
-  const C = { grid: "#d2d4d9", dim: "#868b94", paper: "#aeb2b9", lime: "#3fa66b", amber: "#dc972a", red: "#e0574a", ink: "#3b3f46" };
+  const C = { grid: "#cfd1d6", dim: "#4f545d", paper: "#aeb2b9", lime: "#3fa66b", amber: "#dc972a", red: "#e0574a", ink: "#3b3f46" };
   const keys = [
     { key: "payments_capacity", color: C.paper, dash: [4, 4], width: 1.5 },
     { key: "attempts", color: C.lime, width: 2 },
@@ -213,7 +213,7 @@ function drawChart(series) {
     ctx.stroke();
   }
   ctx.fillStyle = C.dim;
-  ctx.font = "600 11px Manrope, sans-serif";
+  ctx.font = "600 13px Manrope, sans-serif";
   ctx.fillText(String(Math.round(maxY)), 4, pad.t + 8);
   ctx.fillText("0", 4, pad.t + h);
 

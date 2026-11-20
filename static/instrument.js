@@ -25,7 +25,7 @@ const Instrument = (() => {
     return n;
   }
 
-  const ROLES = { gateway: "Edge ingress", orders: "Checkout service", payments: "Downstream dependency" };
+  const ROLES = { gateway: "Edge ingress", orders: "Checkout service", payments: "Dependency" };
 
   function current() { return S.trace === "mitigated" && S.mitigated ? S.mitigated : S.baseline; }
   function ticks() { return (current() && current().series.length) || (S.scenario && S.scenario.ticks) || 90; }
@@ -120,14 +120,14 @@ const Instrument = (() => {
       const g = sv("g", { class: `node ${st}`, transform: `translate(${pos[i].x},${pos[i].y})` });
       g.append(sv("rect", { class: "node-frame", width: nw, height: nh, rx: 24 }));
       g.append(sv("rect", { class: "ring", x: 1, y: 1, width: nw - 2, height: nh - 2, rx: 23 }));
-      g.append(sv("text", { x: 18, y: 40, class: "node-name" }, n.label));
-      g.append(sv("text", { x: 18, y: 62, class: "node-role" }, ROLES[n.id] || ""));
-      g.append(sv("circle", { class: "lamp", cx: nw - 28, cy: 30, r: 8 }));
-      g.append(sv("text", { x: nw - 44, y: 34, "text-anchor": "end", class: "node-state" }, st === "idle" ? "standby" : st));
-      g.append(sv("line", { x1: 0, y1: 78, x2: nw, y2: 78, class: "divider" }));
+      g.append(sv("text", { x: 18, y: 42, class: "node-name" }, n.label));
+      g.append(sv("text", { x: 18, y: 64, class: "node-role" }, ROLES[n.id] || ""));
+      g.append(sv("circle", { class: "lamp", cx: nw - 26, cy: 34, r: 9 }));
+      g.append(sv("text", { x: nw - 18, y: 64, "text-anchor": "end", class: "node-state" }, st === "idle" ? "standby" : st));
+      g.append(sv("line", { x1: 14, y1: 80, x2: nw - 14, y2: 80, class: "divider" }));
       readouts(n.id, run, t).forEach(([k, v], r) => {
-        g.append(sv("text", { x: 18, y: 106 + r * 28, class: "rd-k" }, k));
-        g.append(sv("text", { x: nw - 18, y: 106 + r * 28, "text-anchor": "end", class: "rd-v" }, v));
+        g.append(sv("text", { x: 18, y: 108 + r * 28, class: "rd-k" }, k));
+        g.append(sv("text", { x: nw - 18, y: 108 + r * 28, "text-anchor": "end", class: "rd-v" }, v));
       });
       svg.append(g);
     });
@@ -139,10 +139,10 @@ const Instrument = (() => {
         const active = run && t >= sc.fault.start_tick && t < sc.fault.end_tick;
         const fx = pos[fi].x, fy = pos[fi].y;
         if (active) {
-          const label = `Fault injected: ${fmt(sc.capacities && sc.capacities.payments_rps)}/s cut to ${fmt(sc.fault.capacity_rps)}/s`;
+          const label = `Fault: capacity ${fmt(sc.capacities && sc.capacities.payments_rps)} → ${fmt(sc.fault.capacity_rps)}/s`;
           const tag = sv("g", { class: "fault-tag" });
-          tag.append(sv("rect", { x: fx, y: fy - 44, width: nw, height: 28, rx: 14 }));
-          tag.append(sv("text", { x: fx + nw / 2, y: fy - 25, "text-anchor": "middle" }, label));
+          tag.append(sv("rect", { x: fx, y: fy - 48, width: nw, height: 32, rx: 16 }));
+          tag.append(sv("text", { x: fx + nw / 2, y: fy - 27, "text-anchor": "middle" }, label));
           svg.append(tag);
         } else {
           svg.append(sv("text", { x: fx, y: fy - 24, class: "fault-sched" }, `Fault window t=${sc.fault.start_tick}–${sc.fault.end_tick}s`));
