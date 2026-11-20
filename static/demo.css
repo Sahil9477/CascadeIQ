@@ -513,3 +513,39 @@ body { letter-spacing: -0.01em; -webkit-font-smoothing: antialiased; }
   line-height: 1.45;
   color: var(--dim);
 }
+
+/* cost panel: run totals keep the full width; the panel sits below them and puts the
+   infra estimate (per month) beside the simulated outage loss (this incident) */
+.observe-split { grid-template-columns: 1fr; }
+.cost-panel { display: grid; grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.6fr); gap: 18px 24px; align-items: start; }
+.cost-figures { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cost-figures .metric { display: flex; flex-direction: column-reverse; justify-content: center; align-items: center; text-align: center; min-height: 104px; }
+.cost-figures .v { font-size: 24px; font-weight: 600; letter-spacing: -0.03em; overflow-wrap: anywhere; }
+.cost-figures .k { margin-top: 6px; font-size: 12px; line-height: 1.3; }
+.cost-figures .metric.loss .v { color: var(--bad-text); }
+@media (max-width: 900px) {
+  .cost-panel { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .cost-figures { grid-template-columns: 1fr; }
+}
+
+/* advisory Gemma cross-check */
+.xcheck { padding: 14px 16px; border-radius: var(--r-tile); box-shadow: var(--inset-sm); display: flex; flex-direction: column; gap: 8px; }
+.xcheck .tool { align-self: flex-start; }
+.xcheck .note { margin: 0; font-size: 13px; }
+.xcheck-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.xcheck-table th { text-align: left; color: var(--dim); font-weight: 600; padding: 4px 4px; border-bottom: 1px solid var(--lo); }
+.xcheck-table td { padding: 5px 4px; border-bottom: 1px solid rgba(190, 193, 200, .5); }
+.xcheck-table td.ok { color: var(--ok-text); font-weight: 600; }
+.xcheck-table td.bad { color: var(--bad-text); font-weight: 700; }
+.xcheck-table td.warn { color: var(--warn-text); font-weight: 600; }
+.status.warn { color: var(--warn-text); }
+
+/* Gemma reads the chart */
+.chart-read { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.chart-read .note { margin: 0; font-size: 13px; flex: 1 1 260px; }
+.chart-read .status { flex-basis: 100%; }
+.chart-read-out { flex-basis: 100%; padding: 14px 18px; border-radius: var(--r-tile); box-shadow: var(--inset-sm); }
+.chart-read-out p { margin: 0; font-size: 15px; line-height: 1.6; max-width: 72ch; }
+.chart-suggest { margin-top: 10px !important; font-weight: 700; }
