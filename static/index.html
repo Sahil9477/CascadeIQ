@@ -2,23 +2,169 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>CascadeIQ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 2rem; max-width: 42rem; }
-    code { background: #f4f4f5; padding: 0.1rem 0.35rem; border-radius: 4px; }
-  </style>
+  <title>CascadeIQ — Demo shell</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/ui/demo.css" />
 </head>
 <body>
-  <h1>CascadeIQ</h1>
-  <p>API is up. Danny owns the interactive dashboard — replace this stub.</p>
-  <ul>
-    <li><code>POST /api/interpret</code></li>
-    <li><code>POST /api/audit</code></li>
-    <li><code>POST /api/recommend</code></li>
-    <li><code>POST /api/verify</code></li>
-    <li><code>GET /api/health</code></li>
-    <li><code>GET /docs</code> (OpenAPI)</li>
-  </ul>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand">
+        <h1>CascadeIQ</h1>
+        <p>Interpret → audit → recommend → verify · 90s rehearsal shell</p>
+      </div>
+      <div class="badge-row">
+        <span class="badge" id="healthBadge">api…</span>
+        <span class="badge" id="inferenceBadge">ready</span>
+      </div>
+    </header>
+
+    <div class="steps" aria-label="Demo flow">
+      <span class="step active" data-step="1">1 Interpret</span>
+      <span class="step" data-step="2">2 Scenario</span>
+      <span class="step" data-step="3">3 Audit</span>
+      <span class="step" data-step="4">4 Recommend</span>
+      <span class="step" data-step="5">5 Verify</span>
+    </div>
+
+    <div class="grid">
+      <div class="stack">
+        <section class="panel">
+          <h2>Incident</h2>
+          <p class="hint">Paste the story Akamai AI (Qwen) should turn into an editable scenario. Fixture mode skips live inference for offline rehearsal.</p>
+          <label class="field" for="incident">Incident text</label>
+          <textarea id="incident" spellcheck="false"></textarea>
+          <div class="row">
+            <label class="toggle">
+              <input type="checkbox" id="useFixture" />
+              use_fixture (no live Qwen)
+            </label>
+            <button type="button" id="btnInterpret">Interpret</button>
+            <button type="button" class="secondary" id="btnLoadDemo">Load demo + interpret</button>
+          </div>
+          <div class="status" id="interpretStatus"></div>
+        </section>
+
+        <section class="panel hidden" id="scenarioPanel">
+          <h2>Scenario</h2>
+          <p class="hint">Key fields for the PDF demo defaults. Edit here, or open JSON for full control.</p>
+          <div class="row fields">
+            <div class="field-box">
+              <label for="fTicks">ticks</label>
+              <input id="fTicks" type="number" min="1" />
+            </div>
+            <div class="field-box">
+              <label for="fArrivals">arrivals_rps</label>
+              <input id="fArrivals" type="number" min="1" />
+            </div>
+            <div class="field-box">
+              <label for="fSeed">seed</label>
+              <input id="fSeed" type="number" />
+            </div>
+            <div class="field-box">
+              <label for="fPayCap">payments_rps</label>
+              <input id="fPayCap" type="number" min="1" />
+            </div>
+            <div class="field-box">
+              <label for="fFaultStart">fault start</label>
+              <input id="fFaultStart" type="number" min="0" />
+            </div>
+            <div class="field-box">
+              <label for="fFaultEnd">fault end</label>
+              <input id="fFaultEnd" type="number" min="0" />
+            </div>
+            <div class="field-box">
+              <label for="fFaultCap">fault capacity</label>
+              <input id="fFaultCap" type="number" min="0" />
+            </div>
+            <div class="field-box">
+              <label for="fMaxRetries">max_retries</label>
+              <input id="fMaxRetries" type="number" min="0" />
+            </div>
+          </div>
+          <div class="row">
+            <button type="button" class="ghost" id="btnSyncJson">Fields → JSON</button>
+            <button type="button" class="secondary" id="btnApplyJson">JSON → fields</button>
+            <button type="button" id="btnAudit">Run audit</button>
+          </div>
+          <details class="raw">
+            <summary>Editable scenario JSON</summary>
+            <textarea id="scenarioJson" class="mono" style="min-height:220px;margin-top:0.6rem" spellcheck="false"></textarea>
+          </details>
+          <div class="status" id="auditStatus"></div>
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="panel hidden" id="auditPanel">
+          <h2>Audit</h2>
+          <p class="hint">Deterministic baseline series. Amber band marks the Payments fault window.</p>
+          <div class="metrics" id="metrics"></div>
+          <div class="chart-wrap">
+            <canvas id="chart" width="640" height="220" aria-label="Audit time series"></canvas>
+            <div class="legend">
+              <span class="backlog">backlog</span>
+              <span class="failures">customer_failures</span>
+              <span class="capacity">payments_capacity</span>
+              <span class="attempts">attempts</span>
+            </div>
+          </div>
+          <div class="row">
+            <button type="button" id="btnRecommend">Recommend mitigation</button>
+          </div>
+          <div class="status" id="recStatus"></div>
+        </section>
+
+        <section class="panel hidden" id="recPanel">
+          <h2>Recommend</h2>
+          <p class="hint">Allowlist only. Never treat fixture / fallback as successful inference.</p>
+          <div class="rec-box">
+            <div class="id" id="recId"></div>
+            <div class="rationale" id="recRationale"></div>
+            <span class="flag" id="recFlag">inference_used=—</span>
+            <div class="status err hidden" id="recError" style="margin-top:0.45rem"></div>
+          </div>
+          <div class="row" style="margin-top:0.85rem">
+            <div class="field-box" style="flex:1;min-width:220px">
+              <label for="mitigationPick">Mitigation (allowlist)</label>
+              <select id="mitigationPick"></select>
+            </div>
+            <button type="button" id="btnVerify" style="align-self:flex-end">Verify</button>
+          </div>
+          <div class="status" id="verifyStatus"></div>
+        </section>
+
+        <section class="panel hidden" id="verifyPanel">
+          <h2>Verify</h2>
+          <p class="hint">Same seed / fault / workload; mitigation applied in Python only.</p>
+          <span class="flag" id="overall">—</span>
+          <div class="compare">
+            <table>
+              <thead>
+                <tr>
+                  <th>metric</th>
+                  <th>baseline</th>
+                  <th>mitigated</th>
+                  <th>delta</th>
+                  <th>improved</th>
+                </tr>
+              </thead>
+              <tbody id="deltaBody"></tbody>
+            </table>
+          </div>
+          <ul class="notes" id="notes"></ul>
+        </section>
+      </div>
+    </div>
+
+    <footer class="foot">
+      Demo shell for Sahil rehearsal · Danny owns full dashboard / Postgres / Linode ·
+      <a href="/docs" style="color:#3dd6c6">OpenAPI</a>
+    </footer>
+  </div>
+  <script src="/ui/demo.js"></script>
 </body>
 </html>
