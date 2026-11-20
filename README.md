@@ -5,7 +5,7 @@ Virtual resilience audit: **AI interprets** an incident → **deterministic simu
 Hackathon prototype (Akamai Seattle AI Hackathon, Nov 2026).
 
 **Repo:** https://github.com/Sahil9477/CascadeIQ  
-**Active branch:** `main` (demo shell: `feature/demo-shell`)
+**Active branch:** `main` (demo shell: `cursor/demo-shell-e222`)
 
 ## Team
 
@@ -18,7 +18,7 @@ Hackathon prototype (Akamai Seattle AI Hackathon, Nov 2026).
 
 ```bash
 cd ~/Desktop/CascadeIQ
-git checkout main   # or feature/demo-shell
+git checkout main   # or cursor/demo-shell-e222
 cp .env.example .env
 # paste AKAMAI_API_KEY from workshop (never commit .env)
 
