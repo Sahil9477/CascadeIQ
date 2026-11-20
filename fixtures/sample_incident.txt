@@ -1,0 +1,5 @@
+API Gateway routes checkout traffic to Orders, which calls Payments.
+During a peak window Payments capacity drops hard and checkouts start failing.
+Arrivals are about 80 requests per second. Payments normally handles 100/s
+but falls to roughly 30/s from second 20 through 50. Clients retry immediately
+up to two times.

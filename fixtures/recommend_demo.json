@@ -1,0 +1,8 @@
+{
+  "mitigation_id": "bounded_exponential_backoff_seeded_jitter",
+  "rationale": "Payments is the highest-impact dependency during ticks 20–50 (capacity 30/s vs 80 arrivals). Immediate retries amplify load; bounded exponential backoff with seeded jitter keeps the same retry budget while spreading attempts so more unique checkouts complete.",
+  "raw_model_output": {
+    "mitigation_id": "bounded_exponential_backoff_seeded_jitter",
+    "rationale": "Payments is the highest-impact dependency during ticks 20–50 (capacity 30/s vs 80 arrivals). Immediate retries amplify load; bounded exponential backoff with seeded jitter keeps the same retry budget while spreading attempts so more unique checkouts complete."
+  }
+}

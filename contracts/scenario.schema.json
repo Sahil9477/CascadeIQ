@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cascadeiq.local/contracts/scenario.schema.json",
+  "title": "CascadeIQ Scenario",
+  "type": "object",
+  "required": [
+    "topology",
+    "ticks",
+    "arrivals_rps",
+    "capacities",
+    "fault",
+    "retry",
+    "seed"
+  ],
+  "properties": {
+    "topology": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["id", "label"],
+        "properties": {
+          "id": { "enum": ["gateway", "orders", "payments"] },
+          "label": { "type": "string" }
+        }
+      }
+    },
+    "ticks": { "type": "integer", "minimum": 10, "maximum": 300, "default": 90 },
+    "arrivals_rps": { "type": "integer", "minimum": 1, "default": 80 },
+    "capacities": {
+      "type": "object",
+      "required": ["gateway_rps", "orders_rps", "payments_rps"],
+      "properties": {
+        "gateway_rps": { "type": "integer" },
+        "orders_rps": { "type": "integer" },
+        "payments_rps": { "type": "integer", "default": 100 }
+      }
+    },
+    "fault": {
+      "type": "object",
+      "required": ["service", "start_tick", "end_tick", "capacity_rps"],
+      "properties": {
+        "service": { "const": "payments" },
+        "start_tick": { "type": "integer", "default": 20 },
+        "end_tick": { "type": "integer", "default": 50 },
+        "capacity_rps": { "type": "integer", "default": 30 }
+      }
+    },
+    "retry": {
+      "type": "object",
+      "properties": {
+        "mode": { "enum": ["immediate", "exponential_backoff"] },
+        "max_retries": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "base_backoff_ticks": { "type": "integer" },
+        "max_backoff_ticks": { "type": "integer" },
+        "jitter_fraction": { "type": "number" }
+      }
+    },
+    "queue_limit": { "type": "integer" },
+    "timeout_ticks": { "type": "integer" },
+    "seed": { "type": "integer" },
+    "financial": { "type": "object" },
+    "assumptions": { "type": "array", "items": { "type": "string" } },
+    "editable_defaults": { "type": "array", "items": { "type": "string" } },
+    "source_text": { "type": ["string", "null"] }
+  }
+}

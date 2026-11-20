@@ -1,0 +1,51 @@
+{
+  "overall_improved": true,
+  "deltas": [
+    {
+      "metric": "unique_failed_checkouts",
+      "baseline": 960.0,
+      "mitigated": 910.0,
+      "delta": -50.0,
+      "improved": true
+    },
+    {
+      "metric": "unique_successful_checkouts",
+      "baseline": 6240.0,
+      "mitigated": 6290.0,
+      "delta": 50.0,
+      "improved": true
+    },
+    {
+      "metric": "retry_amplification",
+      "baseline": 0.8667,
+      "mitigated": 0.8736,
+      "delta": 0.0069,
+      "improved": false
+    },
+    {
+      "metric": "peak_backlog",
+      "baseline": 400.0,
+      "mitigated": 400.0,
+      "delta": 0.0,
+      "improved": null
+    },
+    {
+      "metric": "total_retries",
+      "baseline": 3980.0,
+      "mitigated": 4410.0,
+      "delta": 430.0,
+      "improved": false
+    },
+    {
+      "metric": "revenue_at_risk_usd",
+      "baseline": 40320.0,
+      "mitigated": 38220.0,
+      "delta": -2100.0,
+      "improved": true
+    }
+  ],
+  "notes": [
+    "Primary success criterion: fewer unique failed checkouts.",
+    "Financial figures are scenario estimates, not real cloud bills."
+  ]
+}
