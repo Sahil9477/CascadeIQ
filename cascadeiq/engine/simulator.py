@@ -81,11 +81,18 @@ def _admit_arrivals(state: EngineState, scenario: Scenario, t: int) -> int:
 
 
 def _release_ready(state: EngineState, t: int) -> None:
+    """Move ready requests into the payments backlog.
+
+    Each enqueue (original or retry) counts as one attempt toward the dependency.
+    This is intentional: amplification is attempts / original customers, so it stays
+    >= 1 whenever retries are scheduled — unlike counting only successful completions.
+    """
     still: list[Request] = []
     for req in state.scheduled:
         if req.ready_tick <= t:
             req.enqueued_tick = t
             state.backlog.append(req)
+            state.total_attempts += 1
         else:
             still.append(req)
     state.scheduled = still
@@ -167,9 +174,10 @@ def run_simulation(
         remaining: deque[Request] = deque()
         while state.backlog and processed < capacity:
             req = state.backlog.popleft()
+            # Per-tick "attempts" = payments throughput this second (chart series).
+            # Aggregate total_attempts was already counted at enqueue (see _release_ready).
             attempts += 1
             processed += 1
-            state.total_attempts += 1
             # Successful payment for this attempt
             completions += 1
             state.total_completions += 1
@@ -234,13 +242,12 @@ def run_simulation(
     state.failed_customers -= state.success_customers
     unique_failed = len(state.failed_customers)
 
-    retry_amp = (
-        state.total_attempts / max(1, total_customers)
-    )
+    # attempts / original checkouts — each retry enqueue is an extra attempt
+    retry_amp = state.total_attempts / max(1, total_customers)
 
     fin = scenario.financial
     revenue_at_risk = unique_failed * fin.revenue_per_checkout_usd
-    # Extra metered units ≈ total attempts beyond unique customers (retries + overload)
+    # Extra metered units ≈ attempts beyond one per unique customer (retry load)
     extra_units = max(0, state.total_attempts - total_customers)
     incremental_spend = extra_units * fin.metered_unit_price_usd
 
