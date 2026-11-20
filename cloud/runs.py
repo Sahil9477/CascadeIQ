@@ -32,10 +32,14 @@ create table if not exists audit_runs (
 
 
 def database_configured() -> bool:
-    return bool(os.environ.get("PGHOST"))
+    return bool(os.environ.get("DATABASE_URL") or os.environ.get("PGHOST"))
 
 
 def _connect():
+    # Prefer DATABASE_URL when set; else libpq reads standard PG* env vars.
+    dsn = os.environ.get("DATABASE_URL", "").strip()
+    if dsn:
+        return psycopg.connect(dsn, connect_timeout=10)
     return psycopg.connect(connect_timeout=10)
 
 
