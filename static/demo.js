@@ -1,5 +1,4 @@
-/* CascadeIQ Lab 01 — The Retry Storm
-   Scenario-first guided flow over existing /api/* endpoints. */
+/* CascadeIQ demo shell — interpret → audit → recommend → verify */
 
 const DEFAULT_INCIDENT = `API Gateway routes checkout traffic to Orders, which calls Payments.
 During a peak window Payments capacity drops hard and checkouts start failing.
@@ -7,47 +6,29 @@ Arrivals are about 80 requests per second. Payments normally handles 100/s
 but falls to roughly 30/s from second 20 through 50. Clients retry immediately
 up to two times.`;
 
-const DEFAULT_ALLOWLIST = [
-  "bounded_exponential_backoff_seeded_jitter",
-  "retry_cap_reduction",
-];
-
 const state = {
   scenario: null,
   audit: null,
   recommend: null,
   verify: null,
-  prediction: null,
+  interpret: null,
   step: 1,
-  maxReached: 1,
-  labOpen: false,
+  readonly: false,
   catalog: null,
+  labOpen: false,
 };
 
 const $ = (id) => document.getElementById(id);
 
 function setStatus(el, msg, kind = "") {
-  if (!el) return;
   el.textContent = msg || "";
   el.className = "status" + (kind ? ` ${kind}` : "");
 }
 
-function fixtureMode() {
-  return Boolean($("useFixture")?.checked || $("useFixtureAdv")?.checked);
-}
-
-function setStep(n, { unlock = true } = {}) {
+function setStep(n) {
   state.step = n;
-  if (unlock) state.maxReached = Math.max(state.maxReached, n);
-  document.querySelectorAll(".steps .step").forEach((el) => {
-    const s = Number(el.dataset.step);
-    el.classList.toggle("active", s === n);
-    el.classList.toggle("done", s < n && s <= state.maxReached);
-    el.disabled = s > state.maxReached;
-  });
-  document.querySelectorAll(".step-panel").forEach((panel) => {
-    const p = Number(panel.dataset.panel);
-    panel.classList.toggle("hidden", p !== n);
+  document.querySelectorAll(".step").forEach((el) => {
+    el.classList.toggle("active", Number(el.dataset.step) <= n);
   });
 }
 
@@ -95,7 +76,7 @@ async function api(path, body) {
 }
 
 function scenarioFromFields() {
-  if (!state.scenario) throw new Error("Start the lab (or interpret) first.");
+  if (!state.scenario) throw new Error("Interpret first (or load demo scenario).");
   const s = structuredClone(state.scenario);
   s.ticks = Number($("fTicks").value);
   s.arrivals_rps = Number($("fArrivals").value);
@@ -120,6 +101,7 @@ function scenarioFromFields() {
 }
 
 function pickOverrides(fields, edited) {
+  // Key fields from the form win over JSON when form is the source of truth.
   return {
     ticks: fields.ticks,
     arrivals_rps: fields.arrivals_rps,
@@ -152,6 +134,7 @@ function fillScenarioUI(scenario) {
   $("fFaultCap").value = scenario.fault?.capacity_rps ?? 30;
   $("fMaxRetries").value = scenario.retry?.max_retries ?? 2;
   $("scenarioJson").value = JSON.stringify(scenario, null, 2);
+  $("scenarioPanel").classList.remove("hidden");
 }
 
 function renderMetrics(metrics) {
@@ -190,8 +173,8 @@ function updateCostEstimate() {
   const count = Math.max(1, Number($("costCount")?.value) || 1);
   const note = $("costNote");
   if (!plan || plan.monthly == null) {
-    $("costPlanMonthly").textContent = "—";
-    $("costArchMonthly").textContent = "—";
+    if ($("costPlanMonthly")) $("costPlanMonthly").textContent = "—";
+    if ($("costArchMonthly")) $("costArchMonthly").textContent = "—";
     if (note) {
       note.textContent = state.catalog?.source === "unavailable"
         ? "Catalog unavailable — demo still works; prices not invented."
@@ -204,9 +187,7 @@ function updateCostEstimate() {
   const regionTag = plan.price_region === "global"
     ? "global published price (no us-sea region_prices)"
     : `region ${plan.price_region}`;
-  if (note) {
-    note.textContent = `${plan.label} · ${regionTag} · × ${count} instances`;
-  }
+  if (note) note.textContent = `${plan.label} · ${regionTag} · × ${count} instances`;
 }
 
 async function loadComputeCatalog() {
@@ -231,7 +212,6 @@ async function loadComputeCatalog() {
       updateCostEstimate();
       return;
     }
-    // Prefer common shared plans first for demo clarity
     const preferred = ["g6-standard-2", "g6-standard-4", "g6-standard-6", "g6-nanode-1"];
     const types = [...data.types].sort((a, b) => {
       const ai = preferred.indexOf(a.id);
@@ -266,7 +246,26 @@ async function loadComputeCatalog() {
   }
 }
 
+async function startLab() {
+  const btn = $("btnStartLab");
+  if (btn) btn.disabled = true;
+  setStatus($("startStatus"), "Loading Lab 01 demo scenario…");
+  try {
+    await loadDemoScenario();
+    $("landing")?.classList.add("hidden");
+    $("labBench")?.classList.remove("hidden");
+    state.labOpen = true;
+    setStatus($("startStatus"), "", "ok");
+    if (window.Instrument?.resize) Instrument.resize();
+  } catch (e) {
+    setStatus($("startStatus"), e.message, "err");
+    if (btn) btn.disabled = false;
+  }
+}
+
 function drawChart(series) {
+  // Shows the trace selected in the instrument (before / after mitigation), with a playhead at the current second.
+  if (window.Instrument && Instrument.chartSeries()) series = Instrument.chartSeries();
   const canvas = $("chart");
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
@@ -277,23 +276,45 @@ function drawChart(series) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cssW, cssH);
 
-  const pad = { l: 36, r: 12, t: 12, b: 24 };
+  const pad = { l: 40, r: 12, t: 14, b: 24 };
   const w = cssW - pad.l - pad.r;
   const h = cssH - pad.t - pad.b;
-
+  const C = { grid: "#cfd1d6", dim: "#4f545d", paper: "#aeb2b9", lime: "#3fa66b", amber: "#dc972a", red: "#e0574a", ink: "#3b3f46" };
   const keys = [
-    { key: "backlog", color: "#6ea8fe" },
-    { key: "customer_failures", color: "#f07178" },
-    { key: "payments_capacity", color: "#f0b429" },
-    { key: "attempts", color: "#3dd6c6" },
+    { key: "payments_capacity", color: C.paper, dash: [4, 4], width: 1.5 },
+    { key: "attempts", color: C.lime, width: 2 },
+    { key: "backlog", color: C.amber, width: 2 },
+    { key: "customer_failures", color: C.red, width: 2.5 },
   ];
 
   let maxY = 1;
   for (const row of series) {
     for (const { key } of keys) maxY = Math.max(maxY, Number(row[key]) || 0);
   }
+  const n = Math.max(series.length - 1, 1);
+  const xAt = (i) => pad.l + (w * i) / n;
+  const yAt = (v) => pad.t + h - (h * (Number(v) || 0)) / maxY;
 
-  ctx.strokeStyle = "#243041";
+  // fault window first, hatched, so the lines sit on top of it
+  if (state.scenario?.fault) {
+    const x0 = xAt(Math.min(state.scenario.fault.start_tick ?? 0, n));
+    const x1 = xAt(Math.min(state.scenario.fault.end_tick ?? 0, n));
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, pad.t, Math.max(x1 - x0, 1), h);
+    ctx.clip();
+    ctx.strokeStyle = "rgba(224, 87, 74, 0.16)";
+    ctx.lineWidth = 2;
+    for (let x = x0 - h; x < x1 + h; x += 8) {
+      ctx.beginPath();
+      ctx.moveTo(x, pad.t + h);
+      ctx.lineTo(x + h, pad.t);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  ctx.strokeStyle = C.grid;
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
     const y = pad.t + (h * i) / 4;
@@ -302,20 +323,16 @@ function drawChart(series) {
     ctx.lineTo(pad.l + w, y);
     ctx.stroke();
   }
-
-  ctx.fillStyle = "#8b9bb0";
-  ctx.font = "11px IBM Plex Mono, monospace";
+  ctx.fillStyle = C.dim;
+  ctx.font = "600 13px Manrope, sans-serif";
   ctx.fillText(String(Math.round(maxY)), 4, pad.t + 8);
   ctx.fillText("0", 4, pad.t + h);
 
-  const n = Math.max(series.length - 1, 1);
-  const xAt = (i) => pad.l + (w * i) / n;
-  const yAt = (v) => pad.t + h - (h * (Number(v) || 0)) / maxY;
-
-  for (const { key, color } of keys) {
+  for (const { key, color, dash, width } of keys) {
     ctx.beginPath();
+    ctx.setLineDash(dash || []);
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.75;
+    ctx.lineWidth = width;
     series.forEach((row, i) => {
       const x = xAt(i);
       const y = yAt(row[key]);
@@ -324,34 +341,21 @@ function drawChart(series) {
     });
     ctx.stroke();
   }
+  ctx.setLineDash([]);
 
-  if (state.scenario?.fault) {
-    const a = state.scenario.fault.start_tick ?? 0;
-    const b = state.scenario.fault.end_tick ?? 0;
-    const x0 = xAt(Math.min(a, n));
-    const x1 = xAt(Math.min(b, n));
-    ctx.fillStyle = "rgba(240, 180, 41, 0.08)";
-    ctx.fillRect(x0, pad.t, Math.max(x1 - x0, 1), h);
+  if (window.Instrument) {
+    const x = xAt(Math.min(Instrument.t(), n));
+    ctx.strokeStyle = C.ink;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, pad.t);
+    ctx.lineTo(x, pad.t + h);
+    ctx.stroke();
   }
 }
 
-function fillAllowlist(ids, selected) {
-  const allow = ids?.length ? ids : DEFAULT_ALLOWLIST;
-  const sel = $("mitigationPick");
-  const current = selected || sel.value;
-  sel.innerHTML =
-    `<option value="">— pick or recommend —</option>` +
-    allow
-      .map(
-        (id) =>
-          `<option value="${id}" ${id === current ? "selected" : ""}>${id}</option>`
-      )
-      .join("");
-  $("btnToVerify").disabled = !sel.value;
-}
-
 function renderRecommend(rec) {
-  $("recBox").classList.remove("hidden");
+  $("recPanel").classList.remove("hidden");
   $("recId").textContent = rec.mitigation_id;
   $("recRationale").textContent = rec.rationale || "";
   const flag = $("recFlag");
@@ -363,20 +367,32 @@ function renderRecommend(rec) {
   } else {
     $("recError").classList.add("hidden");
   }
-  fillAllowlist(rec.allowlist, rec.mitigation_id);
-  updateExplainPanel();
+
+  // The API returns allowlist entries as {id, label, description}; older fixtures may send plain strings.
+  const allow = (rec.allowlist || [
+    "bounded_exponential_backoff_seeded_jitter",
+    "retry_cap_reduction",
+  ]).map((a) => (typeof a === "string" ? { id: a, label: a } : a));
+  const sel = $("mitigationPick");
+  sel.replaceChildren(
+    ...allow.map((a) => {
+      const opt = document.createElement("option");
+      opt.value = a.id;
+      opt.textContent = a.label && a.label !== a.id ? `${a.label} (${a.id})` : a.id;
+      if (a.description) opt.title = a.description;
+      opt.selected = a.id === rec.mitigation_id;
+      return opt;
+    })
+  );
 }
 
 function renderVerify(v) {
-  $("overall").classList.remove("hidden");
-  $("compareWrap").classList.remove("hidden");
-  $("verifyNext").classList.remove("hidden");
-
+  $("verifyPanel").classList.remove("hidden");
   const overall = $("overall");
   overall.textContent = v.overall_improved
-    ? "Overall improved"
-    : "Overall not improved";
-  overall.className = "flag " + (v.overall_improved ? "true" : "false");
+    ? "Verified: the fix improved the outcome"
+    : "Verified: the fix did not improve the outcome";
+  overall.className = "flag stamp " + (v.overall_improved ? "true" : "false");
 
   const rows = (v.deltas || [])
     .map((d) => {
@@ -392,125 +408,13 @@ function renderVerify(v) {
     })
     .join("");
   $("deltaBody").innerHTML = rows;
-  $("notes").innerHTML = (v.notes || []).map((n) => `<li>${n}</li>`).join("");
-
-  if (state.prediction) {
-    const recall = $("predictRecall");
-    recall.classList.remove("hidden");
-    recall.innerHTML =
-      `<strong>Your prediction</strong> · failed checkouts: ${state.prediction.failed} · ` +
-      `retry amp: ${state.prediction.retry}` +
-      (state.prediction.note
-        ? `<br/>Note: ${escapeHtml(state.prediction.note)}`
-        : "");
-  }
-  updateExplainPanel();
-}
-
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-function updateExplainPanel() {
-  if (state.recommend) {
-    $("explainId").textContent = state.recommend.mitigation_id;
-    $("explainRationale").textContent =
-      state.recommend.rationale || "(no rationale returned)";
-    const flag = $("explainFlag");
-    flag.textContent = `inference_used=${state.recommend.inference_used}`;
-    flag.className =
-      "flag " + (state.recommend.inference_used ? "true" : "false");
-  } else {
-    $("explainId").textContent = $("mitigationPick").value || "—";
-    $("explainRationale").textContent =
-      "No recommend call yet. Use Refresh to ground a Qwen rationale in the audit metrics.";
-    $("explainFlag").textContent = "inference_used=—";
-    $("explainFlag").className = "flag";
-  }
-
-  if (state.verify?.deltas?.length) {
-    const lines = state.verify.deltas.map((d) => {
-      const arrow =
-        d.improved === true ? "↓ improved" : d.improved === false ? "↑ worse" : "—";
-      return `${d.metric}: baseline ${fmt(d.baseline, 2)} → mitigated ${fmt(
-        d.mitigated,
-        2
-      )} (Δ ${fmt(d.delta, 2)}) ${arrow}`;
-    });
-    if (state.verify.overall_improved != null) {
-      lines.unshift(
-        `overall_improved=${state.verify.overall_improved}`
-      );
-    }
-    $("explainDeltaSummary").textContent = lines.join("\n");
-    $("explainDeltaSummary").style.whiteSpace = "pre-wrap";
-    $("explainDeltaSummary").style.fontFamily = "var(--mono)";
-    $("explainDeltaSummary").style.fontSize = "0.78rem";
-  } else {
-    $("explainDeltaSummary").textContent = "Run verify first.";
-    $("explainDeltaSummary").style.whiteSpace = "";
-    $("explainDeltaSummary").style.fontFamily = "";
-  }
-}
-
-async function loadDemoScenario({ forStart = false } = {}) {
-  // Same path as prior "Load demo + interpret" — fixture interpret → demo scenario
-  $("useFixture").checked = true;
-  $("useFixtureAdv").checked = true;
-  $("incident").value = DEFAULT_INCIDENT;
-  const data = await api("/api/interpret", {
-    text: DEFAULT_INCIDENT,
-    use_fixture: true,
-  });
-  fillScenarioUI(data.scenario);
-  inferenceBadge(data.inference_used, data.inference_error);
-  return data;
-}
-
-async function startLab() {
-  const btn = $("btnStartLab");
-  btn.disabled = true;
-  setStatus($("startStatus"), "Loading Lab 01 demo scenario…");
-  try {
-    const data = await loadDemoScenario({ forStart: true });
-    state.labOpen = true;
-    state.audit = null;
-    state.recommend = null;
-    state.verify = null;
-    state.prediction = null;
-    state.maxReached = 1;
-    $("landing").classList.add("hidden");
-    $("labWorkspace").classList.remove("hidden");
-    $("chartWrap").classList.add("hidden");
-    $("observeNext").classList.add("hidden");
-    $("metrics").innerHTML = "";
-    $("recBox").classList.add("hidden");
-    fillAllowlist(DEFAULT_ALLOWLIST, "");
-    setStep(1);
-    setStatus(
-      $("startStatus"),
-      "",
-      ""
-    );
-    setStatus(
-      $("auditStatus"),
-      `Demo scenario ready · validation=${data.validation_status} · inference_used=${data.inference_used}`,
-      data.inference_used ? "ok" : "warn"
-    );
-  } catch (e) {
-    setStatus($("startStatus"), e.message, "err");
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-function backHome() {
-  $("labWorkspace").classList.add("hidden");
-  $("landing").classList.remove("hidden");
-  state.labOpen = false;
+  $("notes").replaceChildren(
+    ...(v.notes || []).map((n) => {
+      const li = document.createElement("li");
+      li.textContent = n;
+      return li;
+    })
+  );
 }
 
 async function onInterpret() {
@@ -518,13 +422,13 @@ async function onInterpret() {
   btn.disabled = true;
   setStatus($("interpretStatus"), "Interpreting…");
   try {
-    const useFix = $("useFixtureAdv").checked;
-    $("useFixture").checked = useFix;
     const data = await api("/api/interpret", {
       text: $("incident").value.trim(),
-      use_fixture: useFix,
+      use_fixture: $("useFixture").checked,
     });
+    state.interpret = data;
     fillScenarioUI(data.scenario);
+    window.Instrument && Instrument.onInterpret(data);
     inferenceBadge(data.inference_used, data.inference_error);
     const bits = [
       `validation=${data.validation_status}`,
@@ -539,6 +443,7 @@ async function onInterpret() {
       bits.join(" · "),
       data.inference_used ? "ok" : "err"
     );
+    setStep(2);
   } catch (e) {
     setStatus($("interpretStatus"), e.message, "err");
   } finally {
@@ -549,26 +454,23 @@ async function onInterpret() {
 async function onAudit() {
   const btn = $("btnAudit");
   btn.disabled = true;
-  setStatus($("auditStatus"), "Running baseline audit…");
+  setStatus($("auditStatus"), "Running audit…");
   try {
     const scenario = scenarioFromFields();
+    // keep JSON + state in sync with form
     fillScenarioUI(scenario);
     const data = await api("/api/audit", { scenario });
     state.audit = data.result;
+    $("auditPanel").classList.remove("hidden");
     renderMetrics(data.result.metrics);
-    $("chartWrap").classList.remove("hidden");
     drawChart(data.result.series || []);
-    $("observeNext").classList.remove("hidden");
+    window.Instrument && Instrument.onAudit(data.result, scenario);
     setStatus(
       $("auditStatus"),
-      `seed=${data.result.seed} · series=${(data.result.series || []).length} ticks · failed=${data.result.metrics?.unique_failed_checkouts}`,
+      `seed=${data.result.seed} · series=${(data.result.series || []).length} ticks`,
       "ok"
     );
-    state.maxReached = Math.max(state.maxReached, 2);
-    document.querySelectorAll(".steps .step").forEach((el) => {
-      const s = Number(el.dataset.step);
-      el.disabled = s > state.maxReached;
-    });
+    setStep(3);
   } catch (e) {
     setStatus($("auditStatus"), e.message, "err");
   } finally {
@@ -576,66 +478,29 @@ async function onAudit() {
   }
 }
 
-function onSavePredict() {
-  const failed = document.querySelector('input[name="predFail"]:checked')?.value;
-  const retry = document.querySelector('input[name="predRetry"]:checked')?.value;
-  if (!failed || !retry) {
-    setStatus($("predictStatus"), "Pick a direction for both predictions.", "err");
-    return;
-  }
-  state.prediction = {
-    failed,
-    retry,
-    note: $("predNote").value.trim(),
-    savedAt: new Date().toISOString(),
-  };
-  try {
-    localStorage.setItem(
-      "cascadeiq_lab01_prediction",
-      JSON.stringify(state.prediction)
-    );
-  } catch {
-    /* local-only; ignore quota */
-  }
-  $("btnToMitigate").disabled = false;
-  setStatus(
-    $("predictStatus"),
-    `Prediction saved locally · failures ${failed} · retry amp ${retry}`,
-    "ok"
-  );
-  state.maxReached = Math.max(state.maxReached, 3);
-  document.querySelectorAll(".steps .step").forEach((el) => {
-    const s = Number(el.dataset.step);
-    el.disabled = s > state.maxReached;
-  });
-}
-
 async function onRecommend() {
   const btn = $("btnRecommend");
   btn.disabled = true;
   setStatus($("recStatus"), "Recommending…");
   try {
-    if (!state.audit) throw new Error("Run baseline audit first.");
+    if (!state.audit) throw new Error("Run audit first.");
     const scenario = scenarioFromFields();
     fillScenarioUI(scenario);
     const data = await api("/api/recommend", {
       scenario,
       audit: state.audit,
-      use_fixture: fixtureMode(),
+      use_fixture: $("useFixture").checked,
     });
     state.recommend = data;
     renderRecommend(data);
+    window.Instrument && Instrument.onRecommend(data, state.audit);
     inferenceBadge(data.inference_used, data.inference_error);
     setStatus(
       $("recStatus"),
       `mitigation=${data.mitigation_id} · inference_used=${data.inference_used}`,
-      data.inference_used ? "ok" : "warn"
+      data.inference_used ? "ok" : "err"
     );
-    state.maxReached = Math.max(state.maxReached, 4);
-    document.querySelectorAll(".steps .step").forEach((el) => {
-      const s = Number(el.dataset.step);
-      el.disabled = s > state.maxReached;
-    });
+    setStep(4);
   } catch (e) {
     setStatus($("recStatus"), e.message, "err");
   } finally {
@@ -656,19 +521,15 @@ async function onVerify() {
     if (state.audit) body.baseline = state.audit;
     const data = await api("/api/verify", body);
     state.verify = data;
+    resetShare();
     renderVerify(data);
+    window.Instrument && Instrument.onVerify(data);
     setStatus(
       $("verifyStatus"),
-      data.overall_improved
-        ? "Mitigation improved primary metrics."
-        : "No overall improvement.",
+      data.overall_improved ? "Mitigation improved primary metrics." : "No overall improvement.",
       data.overall_improved ? "ok" : "err"
     );
-    state.maxReached = Math.max(state.maxReached, 5);
-    document.querySelectorAll(".steps .step").forEach((el) => {
-      const s = Number(el.dataset.step);
-      el.disabled = s > state.maxReached;
-    });
+    setStep(5);
   } catch (e) {
     setStatus($("verifyStatus"), e.message, "err");
   } finally {
@@ -676,72 +537,20 @@ async function onVerify() {
   }
 }
 
-async function onRefreshExplain() {
-  const btn = $("btnRefreshExplain");
-  btn.disabled = true;
-  setStatus($("explainStatus"), "Refreshing recommend rationale…");
-  try {
-    if (!state.audit) throw new Error("Run baseline audit first.");
-    const scenario = scenarioFromFields();
-    const data = await api("/api/recommend", {
-      scenario,
-      audit: state.audit,
-      use_fixture: fixtureMode(),
-    });
-    state.recommend = data;
-    updateExplainPanel();
-    inferenceBadge(data.inference_used, data.inference_error);
-    setStatus(
-      $("explainStatus"),
-      `rationale refreshed · inference_used=${data.inference_used}`,
-      data.inference_used ? "ok" : "warn"
-    );
-  } catch (e) {
-    setStatus($("explainStatus"), e.message, "err");
-  } finally {
-    btn.disabled = false;
+// "Run resilience audit" works from a cold start: interpret the incident first if there is no scenario yet.
+async function runResilienceAudit() {
+  if (!state.scenario) {
+    await onInterpret();
+    if (!state.scenario) return;
   }
+  await onAudit();
 }
 
-async function onSaveRun() {
-  const btn = $("btnSaveRun");
-  btn.disabled = true;
-  setStatus($("shareStatus"), "Calling POST /api/runs…");
-  $("shareOut").classList.add("hidden");
-  try {
-    const payload = {
-      lab: "lab01_retry_storm",
-      scenario: state.scenario,
-      audit: state.audit,
-      recommend: state.recommend,
-      verify: state.verify,
-      prediction: state.prediction,
-      mitigation_id: $("mitigationPick").value || null,
-    };
-    const data = await api("/api/runs", payload);
-    $("shareOut").textContent = JSON.stringify(data, null, 2);
-    $("shareOut").classList.remove("hidden");
-    const stub =
-      data.status === "not_implemented" ||
-      /not.?implemented|danny|postgres|stretch/i.test(data.message || "");
-    if (stub) {
-      setStatus(
-        $("shareStatus"),
-        "Coming soon — Danny’s Postgres /api/runs persistence. Stub responded; nothing was saved.",
-        "warn"
-      );
-    } else {
-      setStatus(
-        $("shareStatus"),
-        `Saved · status=${data.status || "ok"}`,
-        "ok"
-      );
-    }
-  } catch (e) {
-    setStatus($("shareStatus"), e.message, "err");
-  } finally {
-    btn.disabled = false;
-  }
+async function loadDemoScenario() {
+  // Fixture interpret path — offline-safe rehearsal defaults
+  $("useFixture").checked = true;
+  $("incident").value = DEFAULT_INCIDENT;
+  await onInterpret();
 }
 
 function syncJsonFromFields() {
@@ -750,109 +559,159 @@ function syncJsonFromFields() {
     $("scenarioJson").value = JSON.stringify(s, null, 2);
     state.scenario = s;
   } catch (e) {
-    setStatus($("interpretStatus"), e.message, "err");
+    setStatus($("auditStatus"), e.message, "err");
   }
 }
 
-function wire() {
-  $("incident").value = DEFAULT_INCIDENT;
-  fillAllowlist(DEFAULT_ALLOWLIST, "");
+/* ---------- Saved audits (PostgreSQL via /api/runs) + read-only share links ---------- */
 
-  $("btnStartLab").addEventListener("click", startLab);
-  $("btnBackHome").addEventListener("click", backHome);
+function resetShare() {
+  $("shareLink").classList.add("hidden");
+  $("shareLink").textContent = "";
+  setStatus($("saveStatus"), "");
+}
 
-  document.querySelectorAll(".steps .step").forEach((el) => {
-    el.addEventListener("click", () => {
-      const s = Number(el.dataset.step);
-      if (s <= state.maxReached) setStep(s, { unlock: false });
-    });
+async function onSave() {
+  const btn = $("btnSave");
+  btn.disabled = true;
+  setStatus($("saveStatus"), "Saving…");
+  try {
+    if (!state.verify) throw new Error("Verify a mitigation first.");
+    const v = state.verify;
+    const record = {
+      schema_version: "1",
+      scenario: v.baseline.scenario,
+      interpretation: state.interpret,
+      baseline: v.baseline,
+      recommendation: state.recommend,
+      mitigated: v.mitigated,
+      verification: { deltas: v.deltas, overall_improved: v.overall_improved, notes: v.notes, mitigation_id: $("mitigationPick").value },
+    };
+    const data = await api("/api/runs", record);
+    if (!data.id || !data.url) {
+      throw new Error(data.message || "Saving is not enabled on this server. Start it with: uv run serve.py");
+    }
+    const url = location.origin + data.url;
+    const link = $("shareLink");
+    link.href = data.url;
+    link.textContent = url;
+    link.classList.remove("hidden");
+    let copied = false;
+    try { await navigator.clipboard.writeText(url); copied = true; } catch { /* clipboard blocked */ }
+    setStatus($("saveStatus"), `Saved audit ${data.id.slice(0, 8)}…` + (copied ? " · link copied" : ""), "ok");
+  } catch (e) {
+    setStatus($("saveStatus"), e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadSavedAudit(id) {
+  state.readonly = true;
+  document.body.classList.add("readonly");
+  const banner = $("savedBanner");
+  banner.classList.remove("hidden");
+  banner.textContent = "Loading saved audit…";
+  let rec;
+  try {
+    const res = await fetch(`/api/runs/${encodeURIComponent(id)}`);
+    rec = await res.json();
+    if (!res.ok || !rec.baseline) throw new Error(rec.detail || rec.message || `HTTP ${res.status}`);
+  } catch (e) {
+    banner.textContent = "Could not load this saved audit: " + e.message;
+    return;
+  }
+  const when = rec.created_at ? new Date(rec.created_at).toLocaleString() : "";
+  banner.textContent = `Saved audit · read-only · ${when} · seed ${rec.baseline.seed}. Same scenario + seed reproduces these numbers. `;
+  const fresh = document.createElement("a");
+  fresh.href = "/";
+  fresh.textContent = "Start a new audit →";
+  banner.append(fresh);
+
+  if (rec.interpretation) {
+    $("incident").value = rec.interpretation.source_text || "";
+    state.interpret = rec.interpretation;
+    inferenceBadge(rec.interpretation.inference_used, rec.interpretation.inference_error);
+    setStatus($("interpretStatus"),
+      `validation=${rec.interpretation.validation_status} · inference_used=${rec.interpretation.inference_used}`,
+      rec.interpretation.inference_used ? "ok" : "err");
+  }
+  fillScenarioUI(rec.scenario);
+  state.audit = rec.baseline;
+  $("auditPanel").classList.remove("hidden");
+  renderMetrics(rec.baseline.metrics);
+  drawChart(rec.baseline.series || []);
+  if (rec.recommendation) {
+    state.recommend = rec.recommendation;
+    renderRecommend({ ...rec.recommendation, mitigation_id: rec.verification.mitigation_id || rec.recommendation.mitigation_id });
+  }
+  state.verify = { baseline: rec.baseline, mitigated: rec.mitigated, ...rec.verification };
+  renderVerify(state.verify);
+  if (window.Instrument) {
+    if (rec.interpretation) Instrument.onInterpret(rec.interpretation);
+    Instrument.onAudit(rec.baseline, rec.scenario);
+    if (state.recommend) Instrument.onRecommend(state.recommend, rec.baseline);
+    Instrument.onVerify(state.verify);
+  }
+  setStep(5);
+
+  // Read-only: lock every input and hide the actions that would change the audit.
+  document.querySelectorAll("input, textarea, select").forEach((el) => {
+    if (!el.hasAttribute("data-keep-enabled")) el.disabled = true; // timeline controls stay usable
   });
+  ["btnInterpret", "btnLoadDemo", "btnSyncJson", "btnApplyJson", "btnAudit", "btnRecommend", "btnVerify", "shareBox"]
+    .forEach((id) => $(id).classList.add("edit-only"));
+  document.querySelector(".toggle").classList.add("edit-only");
+}
 
-  $("btnAudit").addEventListener("click", onAudit);
+function wire() {
+  const saved = location.pathname.match(/^\/runs\/([0-9a-fA-F-]{36})\/?$/);
+  if (saved) {
+    $("landing")?.classList.add("hidden");
+    $("labBench")?.classList.remove("hidden");
+    state.labOpen = true;
+    loadSavedAudit(saved[1]);
+  } else {
+    $("incident").value = DEFAULT_INCIDENT;
+  }
+  $("btnStartLab")?.addEventListener("click", startLab);
   $("costPlan")?.addEventListener("change", updateCostEstimate);
   $("costCount")?.addEventListener("input", updateCostEstimate);
   loadComputeCatalog();
-  $("btnToPredict").addEventListener("click", () => setStep(2));
-  $("btnSavePredict").addEventListener("click", onSavePredict);
-  $("btnToMitigate").addEventListener("click", () => setStep(3));
-  $("btnRecommend").addEventListener("click", onRecommend);
-  $("mitigationPick").addEventListener("change", () => {
-    $("btnToVerify").disabled = !$("mitigationPick").value;
-    if ($("mitigationPick").value) {
-      state.maxReached = Math.max(state.maxReached, 4);
-      document.querySelectorAll(".steps .step").forEach((el) => {
-        const step = Number(el.dataset.step);
-        el.disabled = step > state.maxReached;
-      });
-    }
-  });
-  $("btnToVerify").addEventListener("click", () => setStep(4));
-  $("btnVerify").addEventListener("click", onVerify);
-  $("btnToExplain").addEventListener("click", () => {
-    updateExplainPanel();
-    setStep(5);
-  });
-  $("btnRefreshExplain").addEventListener("click", onRefreshExplain);
-  $("btnToShare").addEventListener("click", () => {
-    state.maxReached = Math.max(state.maxReached, 6);
-    setStep(6);
-  });
-  $("btnSaveRun").addEventListener("click", onSaveRun);
-
+  $("btnSave").addEventListener("click", onSave);
   $("btnInterpret").addEventListener("click", onInterpret);
-  $("btnLoadDemo").addEventListener("click", async () => {
-    try {
-      setStatus($("interpretStatus"), "Reloading demo…");
-      const data = await loadDemoScenario();
-      setStatus(
-        $("interpretStatus"),
-        `Demo reloaded · inference_used=${data.inference_used}`,
-        "warn"
-      );
-    } catch (e) {
-      setStatus($("interpretStatus"), e.message, "err");
-    }
-  });
+  $("btnAudit").addEventListener("click", runResilienceAudit);
+  $("btnRecommend").addEventListener("click", onRecommend);
+  $("btnVerify").addEventListener("click", onVerify);
+  $("btnLoadDemo").addEventListener("click", loadDemoScenario);
   $("btnSyncJson").addEventListener("click", syncJsonFromFields);
   $("btnApplyJson").addEventListener("click", () => {
     try {
       const s = JSON.parse($("scenarioJson").value);
       fillScenarioUI(s);
-      setStatus($("interpretStatus"), "Applied JSON → fields.", "ok");
+      setStatus($("auditStatus"), "Applied JSON → fields.", "ok");
     } catch (e) {
-      setStatus($("interpretStatus"), "Invalid JSON: " + e.message, "err");
+      setStatus($("auditStatus"), "Invalid JSON: " + e.message, "err");
     }
   });
 
-  // Keep fixture toggles in sync
-  $("useFixture").addEventListener("change", () => {
-    $("useFixtureAdv").checked = $("useFixture").checked;
-  });
-  $("useFixtureAdv").addEventListener("change", () => {
-    $("useFixture").checked = $("useFixtureAdv").checked;
-  });
-
+  // health ping
   fetch("/api/health")
     .then((r) => r.json())
     .then((h) => {
       $("healthBadge").textContent = h.ok ? "api ok" : "api down";
       $("healthBadge").className = "badge " + (h.ok ? "on" : "warn");
+      if (h.database === false) {
+        $("btnSave").disabled = true;
+        $("saveHint").textContent = "Saving unavailable: database not configured on this server";
+      } else if (h.database === undefined) {
+        $("saveHint").textContent = "Saving needs the server started with: uv run serve.py";
+      }
     })
     .catch(() => {
       $("healthBadge").textContent = "api down";
       $("healthBadge").className = "badge warn";
     });
-
-  // Prefetch allowlist labels if available
-  fetch("/api/mitigations")
-    .then((r) => r.json())
-    .then((list) => {
-      if (Array.isArray(list) && list.length) {
-        const ids = list.map((m) => m.id || m).filter(Boolean);
-        if (ids.length) fillAllowlist(ids, $("mitigationPick").value);
-      }
-    })
-    .catch(() => {});
 
   window.addEventListener("resize", () => {
     if (state.audit?.series) drawChart(state.audit.series);

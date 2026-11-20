@@ -4,103 +4,102 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CascadeIQ — Lab 01: The Retry Storm</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 rx=%224%22 fill=%22%23e4e5e9%22/%3E%3Ccircle cx=%228%22 cy=%228%22 r=%223.5%22 fill=%22%233fa66b%22/%3E%3C/svg%3E" />
+  <link rel="preload" href="/ui/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/ui/demo.css" />
 </head>
 <body>
-  <div class="wrap">
-    <header class="top">
-      <div class="brand">
-        <h1>CascadeIQ</h1>
-        <p>Distributed systems lab · observe → predict → mitigate → verify</p>
+  <!-- Lab 01 entry (Sahil) — Start Lab reveals Danny's instrument bench -->
+  <section class="lab-landing" id="landing">
+    <div class="lab-card primary">
+      <div class="lab-kicker">Lab 01</div>
+      <h1>The Retry Storm</h1>
+      <p>
+        Gateway → Orders → Payments. Payments capacity collapses during peak,
+        clients retry immediately, and failed checkouts cascade. Open the
+        resilience bench, run the baseline, then verify a mitigation.
+      </p>
+      <ul class="lab-meta">
+        <li>Topology: Gateway → Orders → Payments</li>
+        <li>Fault: Payments 100→30 rps (ticks 20–50)</li>
+        <li>Baseline: immediate retries, max 2</li>
+      </ul>
+      <button type="button" id="btnStartLab" class="fire">Start Lab</button>
+      <div class="status" id="startStatus"></div>
+    </div>
+    <div class="lab-card disabled" aria-disabled="true">
+      <div class="lab-kicker">Lab 02</div>
+      <h2>Timeout Amplification</h2>
+      <p>Coming soon.</p>
+    </div>
+  </section>
+
+  <div class="bench hidden" id="labBench">
+    <header class="plate">
+      <div class="plate-id">
+        <h1>CascadeIQ · Lab 01</h1>
+        <p>The Retry Storm — resilience test bench for the checkout path. Failures are simulated; nothing real is disrupted.</p>
       </div>
-      <div class="badge-row">
+      <div class="lamps" aria-label="System status">
         <span class="badge" id="healthBadge">api…</span>
         <span class="badge" id="inferenceBadge">ready</span>
+        <span class="badge" id="dbBadge">db…</span>
       </div>
     </header>
 
-    <!-- Landing: scenario-first entry -->
-    <section class="landing" id="landing">
-      <article class="lab-card primary">
-        <div class="lab-kicker">Lab 01</div>
-        <h2>The Retry Storm</h2>
-        <p>
-          Gateway → Orders → Payments. Payments capacity collapses during peak,
-          clients retry immediately, and failed checkouts cascade. Run the
-          baseline, predict a mitigation, then verify it deterministically.
-        </p>
-        <ul class="lab-meta">
-          <li>Topology: Gateway → Orders → Payments</li>
-          <li>Fault: Payments 100→30 rps (ticks 20–50)</li>
-          <li>Baseline: immediate retries, max 2</li>
-        </ul>
-        <button type="button" id="btnStartLab" class="cta">Start Lab</button>
-        <div class="status" id="startStatus"></div>
-      </article>
+    <ol class="sequence" aria-label="Audit sequence">
+      <li class="step active" data-step="1"><b>1</b> Describe</li>
+      <li class="step" data-step="2"><b>2</b> Configure</li>
+      <li class="step" data-step="3"><b>3</b> Audit</li>
+      <li class="step" data-step="4"><b>4</b> Diagnose</li>
+      <li class="step" data-step="5"><b>5</b> Verify</li>
+    </ol>
 
-      <article class="lab-card disabled" aria-disabled="true">
-        <div class="lab-kicker">Lab 02</div>
-        <h2>Timeout Amplification</h2>
-        <p>Coming soon — more cascade patterns after Lab 01.</p>
-        <button type="button" disabled>Coming soon</button>
-      </article>
+    <div class="saved-banner hidden" id="savedBanner" role="status"></div>
 
-      <article class="lab-card disabled" aria-disabled="true">
-        <div class="lab-kicker">Lab 03</div>
-        <h2>Queue Collapse</h2>
-        <p>Coming soon.</p>
-        <button type="button" disabled>Coming soon</button>
-      </article>
-    </section>
-
-    <!-- Guided lab workspace (hidden until Start Lab) -->
-    <div id="labWorkspace" class="hidden">
-      <div class="lab-banner">
-        <div>
-          <div class="lab-kicker">Lab 01</div>
-          <h2 class="lab-title">The Retry Storm</h2>
-          <p class="hint tight">Gateway → Orders → Payments · demo scenario loaded</p>
-        </div>
-        <button type="button" class="secondary" id="btnBackHome">All labs</button>
-      </div>
-
-      <nav class="steps" aria-label="Lab steps">
-        <button type="button" class="step active" data-step="1">1 Observe</button>
-        <button type="button" class="step" data-step="2">2 Predict</button>
-        <button type="button" class="step" data-step="3">3 Mitigate</button>
-        <button type="button" class="step" data-step="4">4 Verify</button>
-        <button type="button" class="step" data-step="5">5 Explain</button>
-        <button type="button" class="step" data-step="6">6 Share</button>
-      </nav>
-
-      <div class="lab-stage">
-        <!-- Step 1: Observe -->
-        <section class="panel step-panel" data-panel="1" id="panelObserve">
-          <h2>1 · Observe the failure</h2>
-          <p class="hint">
-            Run the baseline audit on the loaded demo scenario. Watch backlog,
-            failures, and Payments capacity across the fault window.
-          </p>
-          <div class="row">
-            <button type="button" id="btnAudit">Run baseline audit</button>
+    <div class="deck">
+      <!-- Hero: the instrument -->
+      <section class="instrument" aria-labelledby="topoTitle">
+        <div class="instrument-head">
+          <div>
+            <h2 id="topoTitle">Checkout dependency path</h2>
+            <p class="phase" id="phase">Idle. Run a resilience audit to stream the simulation through this path.</p>
           </div>
-          <div class="status" id="auditStatus"></div>
+          <div class="clock" aria-live="polite"><span id="clock">T+000</span><small>s</small></div>
+        </div>
+
+        <div class="trace-switch" role="group" aria-label="Which run to display">
+          <button type="button" class="trace on" id="traceBase" data-keep-enabled>Before mitigation</button>
+          <button type="button" class="trace" id="traceMit" data-keep-enabled disabled>After mitigation</button>
+          <span class="trace-note" id="traceNote">Node status is derived from the simulator's per-second series.</span>
+        </div>
+
+        <div class="topo" id="topo" role="img" aria-label="Gateway, Orders and Payments with live status"></div>
+
+        <div class="timeline">
+          <button type="button" class="play" id="play" data-keep-enabled aria-label="Play simulation">Play</button>
+          <div class="track">
+            <div class="fault-band" id="faultBand"></div>
+            <input type="range" id="scrub" min="0" max="89" value="0" data-keep-enabled aria-label="Simulation time in seconds" />
+            <div class="ticks" id="ticks"></div>
+          </div>
+        </div>
+
+        <div class="hidden" id="auditPanel">
+          <p class="readout-cap">Run totals before mitigation</p>
           <div class="observe-split">
-            <div class="metrics" id="metrics"></div>
+            <div class="readout" id="metrics"></div>
             <aside class="cost-panel" id="costPanel" aria-label="Published infra cost estimate">
               <div class="cost-kicker">Infra estimate <span class="cost-src" id="costSource">…</span></div>
-              <p class="hint tight">
-                Published Linode monthly price × instance count. Not mapped to RPS.
-                Compare with simulated outage loss (Rev at risk $).
+              <p class="note tight">
+                Published Linode monthly × instance count. Not mapped to RPS.
+                Compare with simulated outage loss below.
               </p>
-              <label class="field" for="costPlan">Compute plan</label>
+              <label class="field-label" for="costPlan">Compute plan</label>
               <select id="costPlan" disabled>
                 <option value="">Loading catalog…</option>
               </select>
-              <label class="field" for="costCount">Instance count</label>
+              <label class="field-label" for="costCount">Instance count</label>
               <input type="number" id="costCount" min="1" max="50" value="3" disabled />
               <div class="cost-figures">
                 <div class="metric">
@@ -115,229 +114,141 @@
               <p class="cost-note" id="costNote"></p>
               <p class="cost-edu" id="costEdu">
                 Architecture cost is what you pay to run capacity; simulated outage
-                loss (Rev at risk) is checkout revenue lost when retries amplify a
-                Payments fault. Right-sizing helps — it does not replace backoff
-                and retry caps when dependencies fail.
+                loss is checkout revenue lost when retries amplify a Payments fault.
+                Right-sizing helps — it does not replace backoff and retry caps.
               </p>
             </aside>
           </div>
-          <div class="chart-wrap hidden" id="chartWrap">
-            <canvas id="chart" width="640" height="220" aria-label="Audit time series"></canvas>
+          <div class="chart-wrap">
+            <canvas id="chart" width="640" height="220" aria-label="Simulation time series"></canvas>
             <div class="legend">
-              <span class="backlog">backlog</span>
-              <span class="failures">customer_failures</span>
-              <span class="capacity">payments_capacity</span>
-              <span class="attempts">attempts</span>
+              <span class="attempts">Payments throughput</span>
+              <span class="backlog">Backlog</span>
+              <span class="failures">Customers failing</span>
+              <span class="capacity">Payments capacity</span>
             </div>
           </div>
-          <div class="row step-nav hidden" id="observeNext">
-            <button type="button" id="btnToPredict">Continue → Predict</button>
-          </div>
-        </section>
+        </div>
+      </section>
 
-        <!-- Step 2: Predict -->
-        <section class="panel step-panel hidden" data-panel="2" id="panelPredict">
-          <h2>2 · Predict what a mitigation will do</h2>
-          <p class="hint">
-            Before applying anything, lock in a local prediction. Nothing is
-            sent to the server yet.
-          </p>
-          <fieldset class="predict-set">
-            <legend>I expect failed checkouts to…</legend>
-            <label class="choice"><input type="radio" name="predFail" value="down" /> decrease</label>
-            <label class="choice"><input type="radio" name="predFail" value="flat" /> stay roughly flat</label>
-            <label class="choice"><input type="radio" name="predFail" value="up" /> increase</label>
-          </fieldset>
-          <fieldset class="predict-set">
-            <legend>I expect retry amplification to…</legend>
-            <label class="choice"><input type="radio" name="predRetry" value="down" /> decrease</label>
-            <label class="choice"><input type="radio" name="predRetry" value="flat" /> stay roughly flat</label>
-            <label class="choice"><input type="radio" name="predRetry" value="up" /> increase</label>
-          </fieldset>
-          <label class="field" for="predNote">Optional note</label>
-          <textarea id="predNote" rows="2" placeholder="Why? (local only)"></textarea>
-          <div class="row">
-            <button type="button" id="btnSavePredict">Save prediction</button>
-            <button type="button" class="secondary" id="btnToMitigate" disabled>Continue → Mitigate</button>
-          </div>
-          <div class="status" id="predictStatus"></div>
-        </section>
+      <!-- Control column -->
+      <aside class="controls" aria-label="Audit controls">
+        <label class="field-label" for="incident">Incident report</label>
+        <textarea id="incident" spellcheck="false" rows="7"></textarea>
+        <div class="control-row">
+          <button type="button" class="tool" id="btnInterpret">Interpret with Qwen</button>
+          <button type="button" class="tool" id="btnLoadDemo">Load demo incident</button>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="useFixture" />
+          Use fixtures instead of live inference (rehearsal)
+        </label>
+        <div class="status" id="interpretStatus"></div>
+        <details class="raw" id="interpretRaw">
+          <summary>Raw model output for this interpretation</summary>
+          <pre id="interpretRawPre"></pre>
+        </details>
 
-        <!-- Step 3: Mitigate -->
-        <section class="panel step-panel hidden" data-panel="3" id="panelMitigate">
-          <h2>3 · Apply a mitigation</h2>
-          <p class="hint">
-            Ask Qwen for an allowlisted recommendation, or pick one yourself.
-            Fixture mode skips live inference for offline rehearsal.
-          </p>
-          <div class="row">
-            <label class="toggle">
-              <input type="checkbox" id="useFixture" />
-              use_fixture (no live Qwen)
-            </label>
-            <button type="button" id="btnRecommend">Recommend via Qwen</button>
-          </div>
-          <div class="status" id="recStatus"></div>
-          <div class="rec-box hidden" id="recBox">
-            <div class="id" id="recId"></div>
-            <div class="rationale" id="recRationale"></div>
-            <span class="flag" id="recFlag">inference_used=—</span>
-            <div class="status err hidden" id="recError"></div>
-          </div>
-          <div class="row" style="margin-top:0.85rem">
-            <div class="field-box" style="flex:1;min-width:220px">
-              <label for="mitigationPick">Mitigation (allowlist)</label>
-              <select id="mitigationPick">
-                <option value="">— pick or recommend —</option>
-              </select>
-            </div>
-            <button type="button" id="btnToVerify" style="align-self:flex-end" disabled>Continue → Verify</button>
-          </div>
-        </section>
+        <button type="button" class="fire" id="btnAudit">Run resilience audit</button>
+        <div class="status" id="auditStatus"></div>
 
-        <!-- Step 4: Verify -->
-        <section class="panel step-panel hidden" data-panel="4" id="panelVerify">
-          <h2>4 · Deterministic verify</h2>
-          <p class="hint">Same seed, fault, and workload — mitigation applied in the simulator only.</p>
-          <div class="row">
-            <button type="button" id="btnVerify">Run verify simulation</button>
+        <details class="config" id="scenarioPanel">
+          <summary>Scenario configuration</summary>
+          <p class="note">Filled in when the incident is interpreted. Edit, then run the audit again.</p>
+          <div class="fields">
+            <label>Duration (s)<input id="fTicks" type="number" min="1" /></label>
+            <label>Arrivals / s<input id="fArrivals" type="number" min="1" /></label>
+            <label>Seed<input id="fSeed" type="number" /></label>
+            <label>Payments capacity / s<input id="fPayCap" type="number" min="1" /></label>
+            <label>Fault starts at (s)<input id="fFaultStart" type="number" min="0" /></label>
+            <label>Fault ends at (s)<input id="fFaultEnd" type="number" min="0" /></label>
+            <label>Capacity during fault / s<input id="fFaultCap" type="number" min="0" /></label>
+            <label>Max retries<input id="fMaxRetries" type="number" min="0" /></label>
           </div>
-          <div class="status" id="verifyStatus"></div>
-          <span class="flag hidden" id="overall">—</span>
-          <div class="compare hidden" id="compareWrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>metric</th>
-                  <th>baseline</th>
-                  <th>mitigated</th>
-                  <th>delta</th>
-                  <th>improved</th>
-                </tr>
-              </thead>
-              <tbody id="deltaBody"></tbody>
-            </table>
-          </div>
-          <ul class="notes" id="notes"></ul>
-          <div class="predict-recall hidden" id="predictRecall"></div>
-          <div class="row step-nav hidden" id="verifyNext">
-            <button type="button" id="btnToExplain">Continue → Explain</button>
-          </div>
-        </section>
-
-        <!-- Step 5: Explain -->
-        <section class="panel step-panel hidden" data-panel="5" id="panelExplain">
-          <h2>5 · Grounded explanation</h2>
-          <p class="hint">
-            Qwen rationale from the recommend path, shown next to the metrics
-            that were actually computed — no invented numbers.
-          </p>
-          <div class="explain-grid">
-            <div class="rec-box" id="explainRec">
-              <div class="kicker">Recommend / rationale</div>
-              <div class="id" id="explainId">—</div>
-              <div class="rationale" id="explainRationale">Run recommend in step 3, or refresh below.</div>
-              <span class="flag" id="explainFlag">inference_used=—</span>
-            </div>
-            <div class="rec-box" id="explainMetrics">
-              <div class="kicker">Computed verify deltas</div>
-              <div id="explainDeltaSummary" class="rationale">Run verify first.</div>
-            </div>
-          </div>
-          <div class="row">
-            <button type="button" class="secondary" id="btnRefreshExplain">Refresh recommend rationale</button>
-            <button type="button" id="btnToShare">Continue → Share</button>
-          </div>
-          <div class="status" id="explainStatus"></div>
-        </section>
-
-        <!-- Step 6: Share -->
-        <section class="panel step-panel hidden" data-panel="6" id="panelShare">
-          <h2>6 · Save and share</h2>
-          <p class="hint">
-            Persist this run via <code>POST /api/runs</code>. Persistence is
-            Danny’s Postgres stretch — expect a clear “coming soon” response,
-            not a fake success.
-          </p>
-          <div class="row">
-            <button type="button" id="btnSaveRun">Save &amp; share run</button>
-          </div>
-          <div class="status" id="shareStatus"></div>
-          <pre class="mono share-out hidden" id="shareOut"></pre>
-        </section>
-      </div>
-
-      <!-- Advanced: custom incident + scenario JSON (collapsed) -->
-      <details class="advanced" id="advancedBlock">
-        <summary>Advanced / Custom Incident</summary>
-        <div class="advanced-body">
-          <p class="hint">
-            Power users: paste a custom incident, interpret to a scenario, or
-            edit JSON. Lab 01’s Start path already loaded the demo scenario.
-          </p>
-          <label class="field" for="incident">Incident text</label>
-          <textarea id="incident" spellcheck="false"></textarea>
-          <div class="row">
-            <label class="toggle">
-              <input type="checkbox" id="useFixtureAdv" />
-              use_fixture on interpret
-            </label>
-            <button type="button" id="btnInterpret">Interpret</button>
-            <button type="button" class="secondary" id="btnLoadDemo">Reload demo scenario</button>
-          </div>
-          <div class="status" id="interpretStatus"></div>
-
-          <div class="row fields" id="scenarioFields">
-            <div class="field-box">
-              <label for="fTicks">ticks</label>
-              <input id="fTicks" type="number" min="1" />
-            </div>
-            <div class="field-box">
-              <label for="fArrivals">arrivals_rps</label>
-              <input id="fArrivals" type="number" min="1" />
-            </div>
-            <div class="field-box">
-              <label for="fSeed">seed</label>
-              <input id="fSeed" type="number" />
-            </div>
-            <div class="field-box">
-              <label for="fPayCap">payments_rps</label>
-              <input id="fPayCap" type="number" min="1" />
-            </div>
-            <div class="field-box">
-              <label for="fFaultStart">fault start</label>
-              <input id="fFaultStart" type="number" min="0" />
-            </div>
-            <div class="field-box">
-              <label for="fFaultEnd">fault end</label>
-              <input id="fFaultEnd" type="number" min="0" />
-            </div>
-            <div class="field-box">
-              <label for="fFaultCap">fault capacity</label>
-              <input id="fFaultCap" type="number" min="0" />
-            </div>
-            <div class="field-box">
-              <label for="fMaxRetries">max_retries</label>
-              <input id="fMaxRetries" type="number" min="0" />
-            </div>
-          </div>
-          <div class="row">
-            <button type="button" class="ghost" id="btnSyncJson">Fields → JSON</button>
-            <button type="button" class="secondary" id="btnApplyJson">JSON → fields</button>
+          <div class="control-row">
+            <button type="button" class="tool" id="btnSyncJson">Copy fields into JSON</button>
+            <button type="button" class="tool" id="btnApplyJson">Apply JSON to fields</button>
           </div>
           <details class="raw">
-            <summary>Editable scenario JSON</summary>
-            <textarea id="scenarioJson" class="mono" style="min-height:200px;margin-top:0.6rem" spellcheck="false"></textarea>
+            <summary>Full scenario JSON</summary>
+            <textarea id="scenarioJson" class="mono" rows="14" spellcheck="false"></textarea>
           </details>
+        </details>
+      </aside>
+    </div>
+
+    <!-- Outcome ledger strip -->
+    <section class="outcome" id="outcome" aria-label="Before and after mitigation">
+      <p class="outcome-empty">Outcome figures appear here after the audit, and before/after once a mitigation is verified.</p>
+    </section>
+
+    <div class="lower">
+      <!-- Diagnostic report -->
+      <section class="report" aria-labelledby="reportTitle">
+        <header class="report-head">
+          <h2 id="reportTitle">Diagnostic report</h2>
+          <span class="report-id" id="reportId">No report yet</span>
+        </header>
+        <div class="report-actions">
+          <button type="button" class="tool strong" id="btnRecommend" disabled>Ask Qwen for a mitigation</button>
+          <div class="status" id="recStatus"></div>
         </div>
-      </details>
+
+        <div class="hidden" id="recPanel">
+          <dl class="report-fields">
+            <dt>Analyst</dt><dd id="recAnalyst">—</dd>
+            <dt>Finding</dt><dd id="recFinding">—</dd>
+            <dt>Proposed</dt><dd><span class="rec-id" id="recId"></span></dd>
+            <dt>Rationale</dt><dd class="rationale" id="recRationale"></dd>
+            <dt>Inference</dt><dd><span class="flag" id="recFlag">inference_used=—</span><div class="status err hidden" id="recError"></div></dd>
+          </dl>
+          <details class="raw">
+            <summary>Raw model output for this recommendation</summary>
+            <pre id="recRawPre"></pre>
+          </details>
+          <div class="verify-row">
+            <label class="field-label" for="mitigationPick">Mitigation to verify (allowlist only)</label>
+            <div class="control-row">
+              <select id="mitigationPick"></select>
+              <button type="button" class="fire small" id="btnVerify">Verify in simulator</button>
+            </div>
+          </div>
+          <div class="status" id="verifyStatus"></div>
+        </div>
+      </section>
+
+      <!-- Verification ledger -->
+      <section class="ledger" aria-labelledby="ledgerTitle">
+        <header class="report-head">
+          <h2 id="ledgerTitle">Verification</h2>
+        </header>
+        <p class="note" id="ledgerEmpty">Same seed, same fault, same workload. Only the retry policy changes, and the simulator decides whether the fix helped.</p>
+        <div class="hidden" id="verifyPanel">
+          <span class="flag stamp" id="overall">—</span>
+          <details class="delta-table" open>
+            <summary>Every metric, before and after</summary>
+            <table>
+              <thead><tr><th>Metric</th><th>Before</th><th>After</th><th>Change</th><th>Better</th></tr></thead>
+              <tbody id="deltaBody"></tbody>
+            </table>
+          </details>
+          <ul class="notes" id="notes"></ul>
+          <div class="share-box" id="shareBox">
+            <button type="button" class="tool strong" id="btnSave">Save and get share link</button>
+            <p class="note" id="saveHint">Stored in Akamai Managed PostgreSQL. The link opens a read-only copy.</p>
+            <div class="status" id="saveStatus"></div>
+            <a id="shareLink" class="share-link hidden" target="_blank" rel="noopener"></a>
+          </div>
+        </div>
+      </section>
     </div>
 
     <footer class="foot">
-      CascadeIQ lab shell · Danny owns full dashboard / Postgres / Linode ·
-      <a href="/docs">OpenAPI</a>
+      Capacities, prices and revenue are illustrative assumptions, not measured Akamai behavior or real bills.
+      <a href="/docs">API reference</a>
     </footer>
   </div>
+  <script src="/ui/instrument.js"></script>
   <script src="/ui/demo.js"></script>
 </body>
 </html>

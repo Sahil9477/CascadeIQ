@@ -1,0 +1,17 @@
+# CascadeIQ on the Linode: runs /root/cascadeiq/serve.py on port 80, restarts on failure and on reboot.
+# Installed by deploy/deploy.sh. Logs: journalctl -u cascadeiq -n 50
+[Unit]
+Description=CascadeIQ dashboard and audit API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/root/cascadeiq
+Environment=HOME=/root
+Environment=PORT=80
+ExecStart=/root/.local/bin/uv run /root/cascadeiq/serve.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
