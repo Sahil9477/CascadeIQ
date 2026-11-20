@@ -11,7 +11,9 @@ const state = {
   audit: null,
   recommend: null,
   verify: null,
+  interpret: null,
   step: 1,
+  readonly: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -235,17 +237,22 @@ function renderRecommend(rec) {
     $("recError").classList.add("hidden");
   }
 
-  const allow = rec.allowlist || [
+  // The API returns allowlist entries as {id, label, description}; older fixtures may send plain strings.
+  const allow = (rec.allowlist || [
     "bounded_exponential_backoff_seeded_jitter",
     "retry_cap_reduction",
-  ];
+  ]).map((a) => (typeof a === "string" ? { id: a, label: a } : a));
   const sel = $("mitigationPick");
-  sel.innerHTML = allow
-    .map(
-      (id) =>
-        `<option value="${id}" ${id === rec.mitigation_id ? "selected" : ""}>${id}</option>`
-    )
-    .join("");
+  sel.replaceChildren(
+    ...allow.map((a) => {
+      const opt = document.createElement("option");
+      opt.value = a.id;
+      opt.textContent = a.label && a.label !== a.id ? `${a.label} (${a.id})` : a.id;
+      if (a.description) opt.title = a.description;
+      opt.selected = a.id === rec.mitigation_id;
+      return opt;
+    })
+  );
 }
 
 function renderVerify(v) {
@@ -270,7 +277,13 @@ function renderVerify(v) {
     })
     .join("");
   $("deltaBody").innerHTML = rows;
-  $("notes").innerHTML = (v.notes || []).map((n) => `<li>${n}</li>`).join("");
+  $("notes").replaceChildren(
+    ...(v.notes || []).map((n) => {
+      const li = document.createElement("li");
+      li.textContent = n;
+      return li;
+    })
+  );
 }
 
 async function onInterpret() {
@@ -282,6 +295,7 @@ async function onInterpret() {
       text: $("incident").value.trim(),
       use_fixture: $("useFixture").checked,
     });
+    state.interpret = data;
     fillScenarioUI(data.scenario);
     inferenceBadge(data.inference_used, data.inference_error);
     const bits = [
@@ -373,6 +387,7 @@ async function onVerify() {
     if (state.audit) body.baseline = state.audit;
     const data = await api("/api/verify", body);
     state.verify = data;
+    resetShare();
     renderVerify(data);
     setStatus(
       $("verifyStatus"),
@@ -404,8 +419,107 @@ function syncJsonFromFields() {
   }
 }
 
+/* ---------- Saved audits (PostgreSQL via /api/runs) + read-only share links ---------- */
+
+function resetShare() {
+  $("shareLink").classList.add("hidden");
+  $("shareLink").textContent = "";
+  setStatus($("saveStatus"), "");
+}
+
+async function onSave() {
+  const btn = $("btnSave");
+  btn.disabled = true;
+  setStatus($("saveStatus"), "Saving…");
+  try {
+    if (!state.verify) throw new Error("Verify a mitigation first.");
+    const v = state.verify;
+    const record = {
+      schema_version: "1",
+      scenario: v.baseline.scenario,
+      interpretation: state.interpret,
+      baseline: v.baseline,
+      recommendation: state.recommend,
+      mitigated: v.mitigated,
+      verification: { deltas: v.deltas, overall_improved: v.overall_improved, notes: v.notes, mitigation_id: $("mitigationPick").value },
+    };
+    const data = await api("/api/runs", record);
+    if (!data.id || !data.url) {
+      throw new Error(data.message || "Saving is not enabled on this server. Start it with: uv run serve.py");
+    }
+    const url = location.origin + data.url;
+    const link = $("shareLink");
+    link.href = data.url;
+    link.textContent = url;
+    link.classList.remove("hidden");
+    let copied = false;
+    try { await navigator.clipboard.writeText(url); copied = true; } catch { /* clipboard blocked */ }
+    setStatus($("saveStatus"), `Saved audit ${data.id.slice(0, 8)}…` + (copied ? " · link copied" : ""), "ok");
+  } catch (e) {
+    setStatus($("saveStatus"), e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadSavedAudit(id) {
+  state.readonly = true;
+  document.body.classList.add("readonly");
+  const banner = $("savedBanner");
+  banner.classList.remove("hidden");
+  banner.textContent = "Loading saved audit…";
+  let rec;
+  try {
+    const res = await fetch(`/api/runs/${encodeURIComponent(id)}`);
+    rec = await res.json();
+    if (!res.ok || !rec.baseline) throw new Error(rec.detail || rec.message || `HTTP ${res.status}`);
+  } catch (e) {
+    banner.textContent = "Could not load this saved audit: " + e.message;
+    return;
+  }
+  const when = rec.created_at ? new Date(rec.created_at).toLocaleString() : "";
+  banner.textContent = `Saved audit · read-only · ${when} · seed ${rec.baseline.seed}. Same scenario + seed reproduces these numbers. `;
+  const fresh = document.createElement("a");
+  fresh.href = "/";
+  fresh.textContent = "Start a new audit →";
+  banner.append(fresh);
+
+  if (rec.interpretation) {
+    $("incident").value = rec.interpretation.source_text || "";
+    state.interpret = rec.interpretation;
+    inferenceBadge(rec.interpretation.inference_used, rec.interpretation.inference_error);
+    setStatus($("interpretStatus"),
+      `validation=${rec.interpretation.validation_status} · inference_used=${rec.interpretation.inference_used}`,
+      rec.interpretation.inference_used ? "ok" : "err");
+  }
+  fillScenarioUI(rec.scenario);
+  state.audit = rec.baseline;
+  $("auditPanel").classList.remove("hidden");
+  renderMetrics(rec.baseline.metrics);
+  drawChart(rec.baseline.series || []);
+  if (rec.recommendation) {
+    state.recommend = rec.recommendation;
+    renderRecommend({ ...rec.recommendation, mitigation_id: rec.verification.mitigation_id || rec.recommendation.mitigation_id });
+  }
+  state.verify = { baseline: rec.baseline, mitigated: rec.mitigated, ...rec.verification };
+  renderVerify(state.verify);
+  setStep(5);
+
+  // Read-only: lock every input and hide the actions that would change the audit.
+  document.querySelectorAll("input, textarea, select").forEach((el) => { el.disabled = true; });
+  ["btnInterpret", "btnLoadDemo", "btnSyncJson", "btnApplyJson", "btnAudit", "btnRecommend", "btnVerify", "shareBox"]
+    .forEach((id) => $(id).classList.add("edit-only"));
+  document.querySelector(".toggle").classList.add("edit-only");
+}
+
 function wire() {
-  $("incident").value = DEFAULT_INCIDENT;
+  const saved = location.pathname.match(/^\/runs\/([0-9a-fA-F-]{36})\/?$/);
+  if (saved) {
+    loadSavedAudit(saved[1]);
+  } else {
+    $("incident").value = DEFAULT_INCIDENT;
+  }
+  $("btnSave").addEventListener("click", onSave);
   $("btnInterpret").addEventListener("click", onInterpret);
   $("btnAudit").addEventListener("click", onAudit);
   $("btnRecommend").addEventListener("click", onRecommend);
@@ -428,6 +542,12 @@ function wire() {
     .then((h) => {
       $("healthBadge").textContent = h.ok ? "api ok" : "api down";
       $("healthBadge").className = "badge " + (h.ok ? "on" : "warn");
+      if (h.database === false) {
+        $("btnSave").disabled = true;
+        $("saveHint").textContent = "Saving unavailable: database not configured on this server";
+      } else if (h.database === undefined) {
+        $("saveHint").textContent = "Saving needs the server started with: uv run serve.py";
+      }
     })
     .catch(() => {
       $("healthBadge").textContent = "api down";

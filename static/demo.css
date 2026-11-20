@@ -431,3 +431,34 @@ footer.foot {
   color: var(--muted);
   font-size: 0.78rem;
 }
+
+/* Saved audits + share links (Danny) */
+.share-box {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed var(--line);
+}
+.share-box .hint { margin: 0; align-self: center; }
+.share-link {
+  display: block;
+  margin-top: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  word-break: break-all;
+  text-decoration: none;
+}
+.saved-banner {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--accent-dim);
+  font-size: 0.9rem;
+}
+.saved-banner a { color: var(--accent); }
+body.readonly .edit-only { display: none !important; }

@@ -30,6 +30,8 @@
       <span class="step" data-step="5">5 Verify</span>
     </div>
 
+    <div class="saved-banner hidden" id="savedBanner" role="status"></div>
+
     <div class="grid">
       <div class="stack">
         <section class="panel">
@@ -156,6 +158,14 @@
             </table>
           </div>
           <ul class="notes" id="notes"></ul>
+          <div class="share-box" id="shareBox">
+            <div class="row">
+              <button type="button" id="btnSave">Save audit &amp; get share link</button>
+              <span class="hint" id="saveHint">Stored in Akamai Managed PostgreSQL · read-only link</span>
+            </div>
+            <div class="status" id="saveStatus"></div>
+            <a id="shareLink" class="share-link hidden" target="_blank" rel="noopener"></a>
+          </div>
         </section>
       </div>
     </div>
