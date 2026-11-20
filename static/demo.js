@@ -168,7 +168,29 @@ function selectedPlan() {
   return state.catalog.types.find((t) => t.id === id) || null;
 }
 
+// Outage loss from the simulator, shown beside the infra estimate. Different units on purpose:
+// infra is per month, outage loss is for this one simulated incident. No ratio is computed.
+function updateOutageLoss() {
+  const box = $("costOutageLoss");
+  if (!box) return;
+  const before = state.audit?.metrics?.revenue_at_risk_usd;
+  const after = state.verify?.mitigated?.metrics?.revenue_at_risk_usd;
+  const secs = state.audit?.series?.length;
+  const span = secs ? `this ${secs} s incident` : "this incident";
+  if (before == null) {
+    box.textContent = "—";
+    $("costOutageLabel").textContent = `Simulated outage loss, ${span} (run the audit)`;
+  } else if (after == null) {
+    box.textContent = money(before);
+    $("costOutageLabel").textContent = `Simulated outage loss, ${span}`;
+  } else {
+    box.textContent = `${money(before)} → ${money(after)}`;
+    $("costOutageLabel").textContent = `Simulated outage loss, ${span}, before → after mitigation`;
+  }
+}
+
 function updateCostEstimate() {
+  updateOutageLoss();
   const plan = selectedPlan();
   const count = Math.max(1, Number($("costCount")?.value) || 1);
   const note = $("costNote");
@@ -465,6 +487,7 @@ async function onAudit() {
     renderMetrics(data.result.metrics);
     drawChart(data.result.series || []);
     window.Instrument && Instrument.onAudit(data.result, scenario);
+    updateOutageLoss();
     setStatus(
       $("auditStatus"),
       `seed=${data.result.seed} · series=${(data.result.series || []).length} ticks`,
@@ -524,6 +547,7 @@ async function onVerify() {
     resetShare();
     renderVerify(data);
     window.Instrument && Instrument.onVerify(data);
+    updateOutageLoss();
     setStatus(
       $("verifyStatus"),
       data.overall_improved ? "Mitigation improved primary metrics." : "No overall improvement.",
@@ -652,6 +676,7 @@ async function loadSavedAudit(id) {
     Instrument.onAudit(rec.baseline, rec.scenario);
     if (state.recommend) Instrument.onRecommend(state.recommend, rec.baseline);
     Instrument.onVerify(state.verify);
+    updateOutageLoss();
   }
   setStep(5);
 
