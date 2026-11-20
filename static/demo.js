@@ -712,8 +712,8 @@ async function onChartRead() {
 }
 
 async function loadDemoScenario() {
-  // Fixture interpret path — offline-safe rehearsal defaults
-  $("useFixture").checked = true;
+  // Leave fixtures OFF so Ask Qwen / Gemma stay live after Start Lab (tick the box for offline rehearsal)
+  $("useFixture").checked = false;
   $("incident").value = DEFAULT_INCIDENT;
   await onInterpret();
 }
