@@ -168,7 +168,7 @@ function drawChart(series) {
   const pad = { l: 40, r: 12, t: 14, b: 24 };
   const w = cssW - pad.l - pad.r;
   const h = cssH - pad.t - pad.b;
-  const C = { grid: "#26271f", dim: "#8f8d84", paper: "#eceae2", lime: "#d7ff55", amber: "#f5c04a", red: "#ff735e" };
+  const C = { grid: "#d2d4d9", dim: "#868b94", paper: "#aeb2b9", lime: "#3fa66b", amber: "#dc972a", red: "#e0574a", ink: "#3b3f46" };
   const keys = [
     { key: "payments_capacity", color: C.paper, dash: [4, 4], width: 1.5 },
     { key: "attempts", color: C.lime, width: 2 },
@@ -192,7 +192,7 @@ function drawChart(series) {
     ctx.beginPath();
     ctx.rect(x0, pad.t, Math.max(x1 - x0, 1), h);
     ctx.clip();
-    ctx.strokeStyle = "rgba(255, 115, 94, 0.18)";
+    ctx.strokeStyle = "rgba(224, 87, 74, 0.16)";
     ctx.lineWidth = 2;
     for (let x = x0 - h; x < x1 + h; x += 8) {
       ctx.beginPath();
@@ -213,7 +213,7 @@ function drawChart(series) {
     ctx.stroke();
   }
   ctx.fillStyle = C.dim;
-  ctx.font = "11px 'JetBrains Mono', monospace";
+  ctx.font = "600 11px Manrope, sans-serif";
   ctx.fillText(String(Math.round(maxY)), 4, pad.t + 8);
   ctx.fillText("0", 4, pad.t + h);
 
@@ -234,8 +234,8 @@ function drawChart(series) {
 
   if (window.Instrument) {
     const x = xAt(Math.min(Instrument.t(), n));
-    ctx.strokeStyle = C.paper;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = C.ink;
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(x, pad.t);
     ctx.lineTo(x, pad.t + h);

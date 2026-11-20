@@ -73,11 +73,23 @@ const Instrument = (() => {
     const pos = topo.map((_, i) => (vertical ? { x: 20, y: top + i * (nh + gap) } : { x: i * (nw + gap), y: top }));
     const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "xMidYMid meet" });
     const defs = sv("defs");
-    const pat = sv("pattern", { id: "hatch", width: 10, height: 10, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" });
-    pat.append(sv("rect", { width: 3, height: 10, fill: "rgba(255,115,94,0.28)" }));
-    const arrow = sv("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 9, markerHeight: 9, orient: "auto-start-reverse" });
-    arrow.append(sv("path", { d: "M0,0 L10,5 L0,10 z", fill: "#eceae2" }));
-    defs.append(pat, arrow);
+    // Neumorphic raise: a dark shadow down-right and a light shadow up-left, merged under the shape.
+    const soft = sv("filter", { id: "soft", x: "-20%", y: "-20%", width: "140%", height: "140%" });
+    soft.append(
+      sv("feGaussianBlur", { in: "SourceAlpha", stdDeviation: 7, result: "b" }),
+      sv("feOffset", { in: "b", dx: 7, dy: 7, result: "d" }),
+      sv("feFlood", { "flood-color": "#bec1c8" }),
+      sv("feComposite", { in2: "d", operator: "in", result: "ds" }),
+      sv("feOffset", { in: "b", dx: -7, dy: -7, result: "l" }),
+      sv("feFlood", { "flood-color": "#ffffff" }),
+      sv("feComposite", { in2: "l", operator: "in", result: "ls" }),
+    );
+    const merge = sv("feMerge");
+    merge.append(sv("feMergeNode", { in: "ds" }), sv("feMergeNode", { in: "ls" }), sv("feMergeNode", { in: "SourceGraphic" }));
+    soft.append(merge);
+    const arrow = sv("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, orient: "auto-start-reverse" });
+    arrow.append(sv("path", { d: "M0,1 L9,5 L0,9 z", fill: "#aeb2b9" }));
+    defs.append(soft, arrow);
     svg.append(defs);
 
     const states = topo.map((n) => (run ? statusAt(run, n.id, t) : "idle"));
@@ -106,12 +118,12 @@ const Instrument = (() => {
     topo.forEach((n, i) => {
       const st = states[i];
       const g = sv("g", { class: `node ${st}`, transform: `translate(${pos[i].x},${pos[i].y})` });
-      g.append(sv("rect", { class: "node-frame", width: nw, height: nh }));
-      if (st === "failing") g.append(sv("rect", { class: "hatch-fill", x: 2, y: 2, width: nw - 4, height: nh - 4 }));
+      g.append(sv("rect", { class: "node-frame", width: nw, height: nh, rx: 24 }));
+      g.append(sv("rect", { class: "ring", x: 1, y: 1, width: nw - 2, height: nh - 2, rx: 23 }));
       g.append(sv("text", { x: 18, y: 40, class: "node-name" }, n.label));
       g.append(sv("text", { x: 18, y: 62, class: "node-role" }, ROLES[n.id] || ""));
-      g.append(sv("rect", { class: "lamp", x: nw - 34, y: 16, width: 18, height: 18 }));
-      g.append(sv("text", { x: nw - 42, y: 30, "text-anchor": "end", class: "node-state" }, st === "idle" ? "standby" : st));
+      g.append(sv("circle", { class: "lamp", cx: nw - 28, cy: 30, r: 8 }));
+      g.append(sv("text", { x: nw - 44, y: 34, "text-anchor": "end", class: "node-state" }, st === "idle" ? "standby" : st));
       g.append(sv("line", { x1: 0, y1: 78, x2: nw, y2: 78, class: "divider" }));
       readouts(n.id, run, t).forEach(([k, v], r) => {
         g.append(sv("text", { x: 18, y: 106 + r * 28, class: "rd-k" }, k));
@@ -129,8 +141,8 @@ const Instrument = (() => {
         if (active) {
           const label = `Fault injected: ${fmt(sc.capacities && sc.capacities.payments_rps)}/s cut to ${fmt(sc.fault.capacity_rps)}/s`;
           const tag = sv("g", { class: "fault-tag" });
-          tag.append(sv("rect", { x: fx, y: fy - 44, width: nw, height: 28 }));
-          tag.append(sv("text", { x: fx + 10, y: fy - 25 }, label));
+          tag.append(sv("rect", { x: fx, y: fy - 44, width: nw, height: 28, rx: 14 }));
+          tag.append(sv("text", { x: fx + nw / 2, y: fy - 25, "text-anchor": "middle" }, label));
           svg.append(tag);
         } else {
           svg.append(sv("text", { x: fx, y: fy - 24, class: "fault-sched" }, `Fault window t=${sc.fault.start_tick}–${sc.fault.end_tick}s`));
