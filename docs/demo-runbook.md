@@ -15,16 +15,16 @@ The UI is Sahil's demo shell (`static/index.html`, `demo.js`, `demo.css`); `serv
 - [ ] `curl http://<IP>/api/health` → `audit_api: true`, `database: true`
 - [ ] Open `http://<IP>/` on a phone on **cellular**, not venue Wi-Fi (proves the firewall lets judges in)
 - [ ] Run the full flow once with live Qwen; save it; keep the `/runs/<uuid>` link as the backup if inference fails live
-- [ ] Untick **use_fixture** and check both steps show `inference_used=true`. If either shows `false`, say so out loud; never present it as AI output
+- [ ] Untick **Use fixtures instead of live inference** and check both steps show `inference_used=true` (header lamp turns lime). If either shows `false`, say so out loud; never present it as AI output
 
 ## 90-second script
 
 1. **Problem (10 s).** "When a dependency slows down, naive retries can turn a partial slowdown into a checkout outage. Engineers can't safely test that in production."
-2. **Interpret (15 s).** Paste the incident → *Interpret*. Point at `validation=…`, `inference_used=true`, and any missing fields filled with defaults.
-3. **Audit (20 s).** *Run audit*. Point at the amber fault band, backlog climbing, customer failures, and revenue at risk (an estimate).
-4. **Recommend (15 s).** *Recommend mitigation*. Qwen picks one of the two allowlisted mitigations and explains why.
-5. **Verify (15 s).** *Verify*. Same seed, same fault, only the retry policy changes. Read the delta table honestly, including rows marked "no".
-6. **Share (5 s).** *Save audit & get share link* → open it on a phone. "Postgres stores every verified audit, so the result is reproducible and shareable."
+2. **Interpret (15 s).** Paste the incident → *Interpret with Qwen*. Point at `validation=…`, `inference_used=true`, and any missing fields filled with defaults.
+3. **Audit (20 s).** *Run resilience audit*. The path animates: Payments goes red when the fault hits, back-pressure runs up to Orders, the clock and hatched fault window show when. Scrub the timeline to any second.
+4. **Recommend (15 s).** *Ask Qwen for a mitigation*. The diagnostic report shows analyst (live or fixture), finding, rationale and the raw model output. Qwen picks one of the two allowlisted mitigations and explains why.
+5. **Verify (15 s).** *Verify in simulator*. The path replays with the fix; the outcome strip shows before → after in large type. Read it honestly, including red deltas.
+6. **Share (5 s).** *Save and get share link* → open it on a phone. "Postgres stores every verified audit, so the result is reproducible and shareable."
 
 ## Akamai services to name
 

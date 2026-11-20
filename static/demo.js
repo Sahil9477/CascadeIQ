@@ -153,6 +153,8 @@ function renderMetrics(metrics) {
 }
 
 function drawChart(series) {
+  // Shows the trace selected in the instrument (before / after mitigation), with a playhead at the current second.
+  if (window.Instrument && Instrument.chartSeries()) series = Instrument.chartSeries();
   const canvas = $("chart");
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
@@ -163,24 +165,45 @@ function drawChart(series) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cssW, cssH);
 
-  const pad = { l: 36, r: 12, t: 12, b: 24 };
+  const pad = { l: 40, r: 12, t: 14, b: 24 };
   const w = cssW - pad.l - pad.r;
   const h = cssH - pad.t - pad.b;
-
+  const C = { grid: "#26271f", dim: "#8f8d84", paper: "#eceae2", lime: "#d7ff55", amber: "#f5c04a", red: "#ff735e" };
   const keys = [
-    { key: "backlog", color: "#6ea8fe" },
-    { key: "customer_failures", color: "#f07178" },
-    { key: "payments_capacity", color: "#f0b429" },
-    { key: "attempts", color: "#3dd6c6" },
+    { key: "payments_capacity", color: C.paper, dash: [4, 4], width: 1.5 },
+    { key: "attempts", color: C.lime, width: 2 },
+    { key: "backlog", color: C.amber, width: 2 },
+    { key: "customer_failures", color: C.red, width: 2.5 },
   ];
 
   let maxY = 1;
   for (const row of series) {
     for (const { key } of keys) maxY = Math.max(maxY, Number(row[key]) || 0);
   }
+  const n = Math.max(series.length - 1, 1);
+  const xAt = (i) => pad.l + (w * i) / n;
+  const yAt = (v) => pad.t + h - (h * (Number(v) || 0)) / maxY;
 
-  // grid
-  ctx.strokeStyle = "#243041";
+  // fault window first, hatched, so the lines sit on top of it
+  if (state.scenario?.fault) {
+    const x0 = xAt(Math.min(state.scenario.fault.start_tick ?? 0, n));
+    const x1 = xAt(Math.min(state.scenario.fault.end_tick ?? 0, n));
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, pad.t, Math.max(x1 - x0, 1), h);
+    ctx.clip();
+    ctx.strokeStyle = "rgba(255, 115, 94, 0.18)";
+    ctx.lineWidth = 2;
+    for (let x = x0 - h; x < x1 + h; x += 8) {
+      ctx.beginPath();
+      ctx.moveTo(x, pad.t + h);
+      ctx.lineTo(x + h, pad.t);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  ctx.strokeStyle = C.grid;
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
     const y = pad.t + (h * i) / 4;
@@ -189,20 +212,16 @@ function drawChart(series) {
     ctx.lineTo(pad.l + w, y);
     ctx.stroke();
   }
-
-  ctx.fillStyle = "#8b9bb0";
-  ctx.font = "11px IBM Plex Mono, monospace";
+  ctx.fillStyle = C.dim;
+  ctx.font = "11px 'JetBrains Mono', monospace";
   ctx.fillText(String(Math.round(maxY)), 4, pad.t + 8);
   ctx.fillText("0", 4, pad.t + h);
 
-  const n = Math.max(series.length - 1, 1);
-  const xAt = (i) => pad.l + (w * i) / n;
-  const yAt = (v) => pad.t + h - (h * (Number(v) || 0)) / maxY;
-
-  for (const { key, color } of keys) {
+  for (const { key, color, dash, width } of keys) {
     ctx.beginPath();
+    ctx.setLineDash(dash || []);
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.75;
+    ctx.lineWidth = width;
     series.forEach((row, i) => {
       const x = xAt(i);
       const y = yAt(row[key]);
@@ -211,15 +230,16 @@ function drawChart(series) {
     });
     ctx.stroke();
   }
+  ctx.setLineDash([]);
 
-  // fault band annotation from scenario if present
-  if (state.scenario?.fault) {
-    const a = state.scenario.fault.start_tick ?? 0;
-    const b = state.scenario.fault.end_tick ?? 0;
-    const x0 = xAt(Math.min(a, n));
-    const x1 = xAt(Math.min(b, n));
-    ctx.fillStyle = "rgba(240, 180, 41, 0.08)";
-    ctx.fillRect(x0, pad.t, Math.max(x1 - x0, 1), h);
+  if (window.Instrument) {
+    const x = xAt(Math.min(Instrument.t(), n));
+    ctx.strokeStyle = C.paper;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, pad.t);
+    ctx.lineTo(x, pad.t + h);
+    ctx.stroke();
   }
 }
 
@@ -259,9 +279,9 @@ function renderVerify(v) {
   $("verifyPanel").classList.remove("hidden");
   const overall = $("overall");
   overall.textContent = v.overall_improved
-    ? "Overall improved"
-    : "Overall not improved";
-  overall.className = "flag " + (v.overall_improved ? "true" : "false");
+    ? "Verified: the fix improved the outcome"
+    : "Verified: the fix did not improve the outcome";
+  overall.className = "flag stamp " + (v.overall_improved ? "true" : "false");
 
   const rows = (v.deltas || [])
     .map((d) => {
@@ -297,6 +317,7 @@ async function onInterpret() {
     });
     state.interpret = data;
     fillScenarioUI(data.scenario);
+    window.Instrument && Instrument.onInterpret(data);
     inferenceBadge(data.inference_used, data.inference_error);
     const bits = [
       `validation=${data.validation_status}`,
@@ -332,6 +353,7 @@ async function onAudit() {
     $("auditPanel").classList.remove("hidden");
     renderMetrics(data.result.metrics);
     drawChart(data.result.series || []);
+    window.Instrument && Instrument.onAudit(data.result, scenario);
     setStatus(
       $("auditStatus"),
       `seed=${data.result.seed} · series=${(data.result.series || []).length} ticks`,
@@ -360,6 +382,7 @@ async function onRecommend() {
     });
     state.recommend = data;
     renderRecommend(data);
+    window.Instrument && Instrument.onRecommend(data, state.audit);
     inferenceBadge(data.inference_used, data.inference_error);
     setStatus(
       $("recStatus"),
@@ -389,6 +412,7 @@ async function onVerify() {
     state.verify = data;
     resetShare();
     renderVerify(data);
+    window.Instrument && Instrument.onVerify(data);
     setStatus(
       $("verifyStatus"),
       data.overall_improved ? "Mitigation improved primary metrics." : "No overall improvement.",
@@ -400,6 +424,15 @@ async function onVerify() {
   } finally {
     btn.disabled = false;
   }
+}
+
+// "Run resilience audit" works from a cold start: interpret the incident first if there is no scenario yet.
+async function runResilienceAudit() {
+  if (!state.scenario) {
+    await onInterpret();
+    if (!state.scenario) return;
+  }
+  await onAudit();
 }
 
 async function loadDemoScenario() {
@@ -503,10 +536,18 @@ async function loadSavedAudit(id) {
   }
   state.verify = { baseline: rec.baseline, mitigated: rec.mitigated, ...rec.verification };
   renderVerify(state.verify);
+  if (window.Instrument) {
+    if (rec.interpretation) Instrument.onInterpret(rec.interpretation);
+    Instrument.onAudit(rec.baseline, rec.scenario);
+    if (state.recommend) Instrument.onRecommend(state.recommend, rec.baseline);
+    Instrument.onVerify(state.verify);
+  }
   setStep(5);
 
   // Read-only: lock every input and hide the actions that would change the audit.
-  document.querySelectorAll("input, textarea, select").forEach((el) => { el.disabled = true; });
+  document.querySelectorAll("input, textarea, select").forEach((el) => {
+    if (!el.hasAttribute("data-keep-enabled")) el.disabled = true; // timeline controls stay usable
+  });
   ["btnInterpret", "btnLoadDemo", "btnSyncJson", "btnApplyJson", "btnAudit", "btnRecommend", "btnVerify", "shareBox"]
     .forEach((id) => $(id).classList.add("edit-only"));
   document.querySelector(".toggle").classList.add("edit-only");
@@ -521,7 +562,7 @@ function wire() {
   }
   $("btnSave").addEventListener("click", onSave);
   $("btnInterpret").addEventListener("click", onInterpret);
-  $("btnAudit").addEventListener("click", onAudit);
+  $("btnAudit").addEventListener("click", runResilienceAudit);
   $("btnRecommend").addEventListener("click", onRecommend);
   $("btnVerify").addEventListener("click", onVerify);
   $("btnLoadDemo").addEventListener("click", loadDemoScenario);
