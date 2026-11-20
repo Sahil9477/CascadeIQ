@@ -59,3 +59,31 @@ def test_retry_cap_reduction_changes_retries():
     assert mitigated.scenario.retry.max_retries == 1
     # Cap reduction should not increase retry count vs baseline
     assert mitigated.metrics.total_retries <= baseline.metrics.total_retries
+
+
+def test_retry_amplification_reflects_retry_load():
+    """Amplification is attempts/originals — never <1 when retries fire.
+
+    Regression: counting only successful payment slots made amp ~0.87 because
+    timed-out / overflowed tries never incremented total_attempts.
+    """
+    s = default_demo_scenario()
+    baseline = run_simulation(s)
+    m = baseline.metrics
+    assert m.total_retries > 0
+    assert m.total_attempts >= m.total_retries
+    # Every original checkout is enqueued at least once; retries add more attempts
+    originals = m.unique_successful_checkouts + m.unique_failed_checkouts
+    assert originals > 0
+    assert m.total_attempts >= originals
+    assert m.retry_amplification >= 1.0
+    # Coherent with retry count: amp ≈ 1 + retries/originals
+    expected = m.total_attempts / originals
+    assert abs(m.retry_amplification - round(expected, 4)) < 1e-9
+
+    mitigated = run_simulation(s, mitigation=MitigationId.BOUNDED_EXPONENTIAL_BACKOFF)
+    _, overall, _ = compare_results(baseline, mitigated)
+    # Lab 01 demo: backoff still improves primary customer-failure metric
+    assert overall is True
+    assert mitigated.metrics.unique_failed_checkouts < baseline.metrics.unique_failed_checkouts
+    assert mitigated.metrics.retry_amplification >= 1.0
