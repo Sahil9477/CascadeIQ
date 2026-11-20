@@ -204,8 +204,18 @@ const Instrument = (() => {
     el("play").textContent = "Play";
     el("play").setAttribute("aria-label", "Play simulation");
   }
+  function setPlayEnabled(on) {
+    const btn = el("play");
+    btn.disabled = !on;
+    btn.title = on ? "" : "Run a resilience audit first";
+  }
   function play() {
-    if (!current()) return;
+    if (!current()) {
+      const ph = el("phase");
+      if (ph) { ph.textContent = "Run a resilience audit first — then Play streams the simulation."; ph.className = "phase"; }
+      setPlayEnabled(false);
+      return;
+    }
     stop();
     if (S.t >= ticks() - 1) setT(0);
     el("play").textContent = "Pause";
@@ -292,6 +302,7 @@ const Instrument = (() => {
     S.deltas = null;
     el("traceMit").disabled = true;
     el("btnRecommend").disabled = false;
+    setPlayEnabled(true);
     el("reportId").textContent = `Seed ${result.seed}`;
     el("ledgerEmpty").classList.remove("hidden");
     setTrace("baseline");
@@ -325,6 +336,7 @@ const Instrument = (() => {
   }
 
   function init() {
+    setPlayEnabled(false);
     el("scrub").addEventListener("input", (e) => { stop(); setT(Number(e.target.value)); });
     el("play").addEventListener("click", () => (S.timer ? stop() : play()));
     el("traceBase").addEventListener("click", () => setTrace("baseline"));
