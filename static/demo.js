@@ -489,6 +489,7 @@ async function onAudit() {
     drawChart(data.result.series || []);
     window.Instrument && Instrument.onAudit(data.result, scenario);
     updateOutageLoss();
+    resetChartRead();
     setStatus(
       $("auditStatus"),
       `seed=${data.result.seed} · series=${(data.result.series || []).length} ticks`,
@@ -502,6 +503,24 @@ async function onAudit() {
   }
 }
 
+function visualNote(read) {
+  return read?.used ? [read.text, read.suggestion && `Suggestion: ${read.suggestion}`].filter(Boolean).join("\n") : null;
+}
+
+function renderVisualInput(rec, read) {
+  const dd = $("recVisual");
+  if (!dd) return;
+  if (rec?.visual_note_used) {
+    dd.textContent = `Gemma read the chart and Qwen got that reading as a hint (metrics still win): "${(rec.visual_note || "").slice(0, 220)}${(rec.visual_note || "").length > 220 ? "…" : ""}"`;
+  } else if ($("useFixture").checked && !state.readonly) {
+    dd.textContent = "Not used: fixture mode skips both models.";
+  } else if (read && !read.used) {
+    dd.textContent = `Gemma was not available (${read.error}), so Qwen used the metrics only.`;
+  } else {
+    dd.textContent = "Not used: Qwen chose from the metrics only.";
+  }
+}
+
 async function onRecommend() {
   const btn = $("btnRecommend");
   btn.disabled = true;
@@ -510,13 +529,29 @@ async function onRecommend() {
     if (!state.audit) throw new Error("Run audit first.");
     const scenario = scenarioFromFields();
     fillScenarioUI(scenario);
-    const data = await api("/api/recommend", {
-      scenario,
-      audit: state.audit,
-      use_fixture: $("useFixture").checked,
-    });
+    const useFixture = $("useFixture").checked;
+    // Pipeline: (1) Gemma reads the before-mitigation chart, (2) Qwen chooses with that reading as a hint.
+    let read = null;
+    if (!useFixture) {
+      setStatus($("recStatus"), "Step 1 of 2: Gemma is reading the chart…");
+      try {
+        read = state.chartRead?.trace === "before" ? state.chartRead : await readChart();
+      } catch (e) {
+        read = { used: false, error: e.message };
+      }
+      setStatus($("recStatus"), "Step 2 of 2: Qwen is choosing a mitigation…");
+    }
+    const body = { scenario, audit: state.audit, use_fixture: useFixture, visual_note: visualNote(read) };
+    let data;
+    try {
+      data = await api("/api/recommend/informed", body);
+    } catch (e) {
+      if (!/^404/.test(e.message)) throw e;
+      data = await api("/api/recommend", { scenario, audit: state.audit, use_fixture: useFixture }); // server without serve.py
+    }
     state.recommend = data;
     renderRecommend(data);
+    renderVisualInput(data, read);
     window.Instrument && Instrument.onRecommend(data, state.audit);
     inferenceBadge(data.inference_used, data.inference_error);
     setStatus(
@@ -634,28 +669,41 @@ function chartPng() {
   return out.toDataURL("image/png");
 }
 
+function resetChartRead() {
+  state.chartRead = null;
+  $("chartReadOut").classList.add("hidden");
+  setStatus($("chartReadStatus"), "");
+}
+
+// Gemma reads the chart currently on screen. Stores the result (with which trace it saw) for the Qwen step.
+async function readChart() {
+  const sc = state.audit?.scenario || state.scenario;
+  if (!state.audit || !sc) throw new Error("Run the audit first.");
+  const trace = window.Instrument && Instrument.trace() === "mitigated" ? "after" : "before";
+  $("chartReadOut").classList.add("hidden");
+  setStatus($("chartReadStatus"), "Gemma is reading the chart…");
+  const r = await api("/api/chart/review", {
+    image: chartPng(), fault_start: sc.fault.start_tick, fault_end: sc.fault.end_tick, trace,
+  });
+  state.chartRead = { ...r, trace };
+  if (!r.used) {
+    setStatus($("chartReadStatus"), `Gemma was not called: ${r.error}`, "warn");
+    return state.chartRead;
+  }
+  $("chartReadText").textContent = r.text || "";
+  $("chartReadSuggest").textContent = r.suggestion ? `Suggestion: ${r.suggestion}` : "";
+  $("chartReadSuggest").classList.toggle("hidden", !r.suggestion);
+  $("chartReadOut").classList.remove("hidden");
+  setStatus($("chartReadStatus"),
+    `Read by ${r.model} (vision)${r.latency_ms ? ` in ${(r.latency_ms / 1000).toFixed(1)} s` : ""}, ${trace} mitigation. Advisory only.`, "ok");
+  return state.chartRead;
+}
+
 async function onChartRead() {
   const btn = $("btnChartRead");
   btn.disabled = true;
-  $("chartReadOut").classList.add("hidden");
-  setStatus($("chartReadStatus"), "Gemma is reading the chart…");
   try {
-    const sc = state.audit?.scenario || state.scenario;
-    if (!state.audit || !sc) throw new Error("Run the audit first.");
-    const trace = window.Instrument && Instrument.trace() === "mitigated" ? "after" : "before";
-    const r = await api("/api/chart/review", {
-      image: chartPng(), fault_start: sc.fault.start_tick, fault_end: sc.fault.end_tick, trace,
-    });
-    if (!r.used) {
-      setStatus($("chartReadStatus"), `Gemma was not called: ${r.error}`, "warn");
-      return;
-    }
-    $("chartReadText").textContent = r.text || "";
-    $("chartReadSuggest").textContent = r.suggestion ? `Suggestion: ${r.suggestion}` : "";
-    $("chartReadSuggest").classList.toggle("hidden", !r.suggestion);
-    $("chartReadOut").classList.remove("hidden");
-    setStatus($("chartReadStatus"),
-      `Read by ${r.model} (vision)${r.latency_ms ? ` in ${(r.latency_ms / 1000).toFixed(1)} s` : ""}, ${trace === "after" ? "after" : "before"} mitigation. Advisory only.`, "ok");
+    await readChart();
   } catch (e) {
     setStatus($("chartReadStatus"), e.message, "err");
   } finally {
@@ -768,6 +816,7 @@ async function loadSavedAudit(id) {
     if (rec.interpretation) Instrument.onInterpret(rec.interpretation);
     Instrument.onAudit(rec.baseline, rec.scenario);
     if (state.recommend) Instrument.onRecommend(state.recommend, rec.baseline);
+    if (state.recommend) renderVisualInput(state.recommend, null);
     Instrument.onVerify(state.verify);
     updateOutageLoss();
   }

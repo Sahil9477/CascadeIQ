@@ -50,6 +50,10 @@ app.router.routes = [r for r in app.router.routes if not (isinstance(r, APIRoute
 app.include_router(runs_router)
 app.include_router(check_router)  # advisory Gemma cross-check of Qwen's extraction
 app.include_router(chart_router)  # advisory: Gemma (vision) reads the simulation chart
+if AUDIT_API:  # Qwen's recommendation informed by Gemma's chart reading; needs Sahil's engine
+    from checks.informed_recommend import router as informed_router
+
+    app.include_router(informed_router)
 if not any(getattr(r, "path", None) == "/ui" for r in app.router.routes):
     app.mount("/ui", StaticFiles(directory=STATIC, html=True), name="ui")
 
