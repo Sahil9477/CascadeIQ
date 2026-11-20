@@ -46,6 +46,7 @@ See [`docs/cascadeiq-api-contracts.md`](docs/cascadeiq-api-contracts.md) and [`c
 
 - `POST /api/interpret` — Qwen → scenario JSON
 - `POST /api/audit` — baseline sim time series + metrics
+- `GET /api/catalog/compute?region=us-sea` — published Linode types (`source: live|unavailable`)
 - `POST /api/recommend` — Qwen allowlisted mitigation
 - `POST /api/verify` — same seed + mitigation deltas
 - `POST /api/runs` — Danny stub

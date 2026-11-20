@@ -21,6 +21,7 @@ const state = {
   step: 1,
   maxReached: 1,
   labOpen: false,
+  catalog: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -160,7 +161,7 @@ function renderMetrics(metrics) {
     ["Retry amp.", metrics.retry_amplification, 3],
     ["Peak backlog", metrics.peak_backlog],
     ["Total retries", metrics.total_retries],
-    ["Rev at risk $", metrics.revenue_at_risk_usd, 0],
+    ["Simulated outage loss $", metrics.revenue_at_risk_usd, 0],
   ];
   $("metrics").innerHTML = items
     .map(
@@ -168,6 +169,101 @@ function renderMetrics(metrics) {
         `<div class="metric"><div class="k">${k}</div><div class="v">${fmt(v, d)}</div></div>`
     )
     .join("");
+}
+
+function money(n) {
+  if (n == null || Number.isNaN(n)) return "—";
+  return `$${Number(n).toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: Number.isInteger(n) ? 0 : 2,
+  })}`;
+}
+
+function selectedPlan() {
+  const id = $("costPlan")?.value;
+  if (!id || !state.catalog?.types) return null;
+  return state.catalog.types.find((t) => t.id === id) || null;
+}
+
+function updateCostEstimate() {
+  const plan = selectedPlan();
+  const count = Math.max(1, Number($("costCount")?.value) || 1);
+  const note = $("costNote");
+  if (!plan || plan.monthly == null) {
+    $("costPlanMonthly").textContent = "—";
+    $("costArchMonthly").textContent = "—";
+    if (note) {
+      note.textContent = state.catalog?.source === "unavailable"
+        ? "Catalog unavailable — demo still works; prices not invented."
+        : "Pick a plan with a published monthly price.";
+    }
+    return;
+  }
+  $("costPlanMonthly").textContent = money(plan.monthly);
+  $("costArchMonthly").textContent = money(plan.monthly * count);
+  const regionTag = plan.price_region === "global"
+    ? "global published price (no us-sea region_prices)"
+    : `region ${plan.price_region}`;
+  if (note) {
+    note.textContent = `${plan.label} · ${regionTag} · × ${count} instances`;
+  }
+}
+
+async function loadComputeCatalog() {
+  const src = $("costSource");
+  const planSel = $("costPlan");
+  const countEl = $("costCount");
+  if (!planSel) return;
+  try {
+    const res = await fetch("/api/catalog/compute?region=us-sea");
+    const data = await res.json();
+    state.catalog = data;
+    const live = data.source === "live" && (data.types || []).length > 0;
+    if (src) {
+      src.textContent = data.source || "unavailable";
+      src.className = `cost-src ${live ? "live" : "unavailable"}`;
+    }
+    planSel.innerHTML = "";
+    if (!live) {
+      planSel.innerHTML = `<option value="">Catalog unavailable</option>`;
+      planSel.disabled = true;
+      if (countEl) countEl.disabled = true;
+      updateCostEstimate();
+      return;
+    }
+    // Prefer common shared plans first for demo clarity
+    const preferred = ["g6-standard-2", "g6-standard-4", "g6-standard-6", "g6-nanode-1"];
+    const types = [...data.types].sort((a, b) => {
+      const ai = preferred.indexOf(a.id);
+      const bi = preferred.indexOf(b.id);
+      if (ai === -1 && bi === -1) return (a.monthly ?? 0) - (b.monthly ?? 0);
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+    for (const t of types) {
+      if (t.monthly == null) continue;
+      const opt = document.createElement("option");
+      opt.value = t.id;
+      opt.textContent = `${t.label} — $${t.monthly}/mo`;
+      planSel.appendChild(opt);
+    }
+    const defaultId = types.find((t) => t.id === "g6-standard-2")?.id || types[0]?.id;
+    if (defaultId) planSel.value = defaultId;
+    planSel.disabled = false;
+    if (countEl) countEl.disabled = false;
+    updateCostEstimate();
+  } catch (e) {
+    state.catalog = { source: "unavailable", types: [], message: String(e) };
+    if (src) {
+      src.textContent = "unavailable";
+      src.className = "cost-src unavailable";
+    }
+    planSel.innerHTML = `<option value="">Catalog unavailable</option>`;
+    planSel.disabled = true;
+    if (countEl) countEl.disabled = true;
+    updateCostEstimate();
+  }
 }
 
 function drawChart(series) {
@@ -673,6 +769,9 @@ function wire() {
   });
 
   $("btnAudit").addEventListener("click", onAudit);
+  $("costPlan")?.addEventListener("change", updateCostEstimate);
+  $("costCount")?.addEventListener("input", updateCostEstimate);
+  loadComputeCatalog();
   $("btnToPredict").addEventListener("click", () => setStep(2));
   $("btnSavePredict").addEventListener("click", onSavePredict);
   $("btnToMitigate").addEventListener("click", () => setStep(3));

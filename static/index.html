@@ -88,7 +88,39 @@
             <button type="button" id="btnAudit">Run baseline audit</button>
           </div>
           <div class="status" id="auditStatus"></div>
-          <div class="metrics" id="metrics"></div>
+          <div class="observe-split">
+            <div class="metrics" id="metrics"></div>
+            <aside class="cost-panel" id="costPanel" aria-label="Published infra cost estimate">
+              <div class="cost-kicker">Infra estimate <span class="cost-src" id="costSource">…</span></div>
+              <p class="hint tight">
+                Published Linode monthly price × instance count. Not mapped to RPS.
+                Compare with simulated outage loss (Rev at risk $).
+              </p>
+              <label class="field" for="costPlan">Compute plan</label>
+              <select id="costPlan" disabled>
+                <option value="">Loading catalog…</option>
+              </select>
+              <label class="field" for="costCount">Instance count</label>
+              <input type="number" id="costCount" min="1" max="50" value="3" disabled />
+              <div class="cost-figures">
+                <div class="metric">
+                  <div class="k">Plan monthly (published)</div>
+                  <div class="v" id="costPlanMonthly">—</div>
+                </div>
+                <div class="metric">
+                  <div class="k">Architecture estimate / mo</div>
+                  <div class="v" id="costArchMonthly">—</div>
+                </div>
+              </div>
+              <p class="cost-note" id="costNote"></p>
+              <p class="cost-edu" id="costEdu">
+                Architecture cost is what you pay to run capacity; simulated outage
+                loss (Rev at risk) is checkout revenue lost when retries amplify a
+                Payments fault. Right-sizing helps — it does not replace backoff
+                and retry caps when dependencies fail.
+              </p>
+            </aside>
+          </div>
           <div class="chart-wrap hidden" id="chartWrap">
             <canvas id="chart" width="640" height="220" aria-label="Audit time series"></canvas>
             <div class="legend">

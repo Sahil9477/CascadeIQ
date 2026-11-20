@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from cascadeiq.api.catalog import DEFAULT_REGION, fetch_compute_catalog
 from cascadeiq.engine.models import (
     MITIGATION_ALLOWLIST,
     AuditRequest,
@@ -59,6 +60,15 @@ def health():
 @app.get("/api/mitigations")
 def list_mitigations():
     return {"allowlist": MITIGATION_ALLOWLIST}
+
+
+@app.get("/api/catalog/compute")
+def catalog_compute(region: str = DEFAULT_REGION):
+    """Published Linode compute prices for a region (us-sea preferred when listed).
+
+    source=live | unavailable — never invents prices. Optional LINODE_TOKEN.
+    """
+    return fetch_compute_catalog(region=region)
 
 
 @app.post("/api/interpret", response_model=InterpretResponse)
